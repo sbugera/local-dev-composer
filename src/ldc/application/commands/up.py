@@ -52,6 +52,7 @@ class UpCommand:
         skip_checks: bool = False,
         skip_install: bool = True,
         states: Optional[Dict[str, ServiceState]] = None,
+        config_dir: str = ".",
     ) -> Dict[str, ServiceState]:
         """
         Start services.  Returns the final states dict.
@@ -120,7 +121,7 @@ class UpCommand:
                     config.root, svc.name, svc.dir, svc.start.working_dir
                 )
                 log_file = str(Path(config.log_dir) / f"{name}.log")
-                env = resolve_env(svc.env, svc.env_files, working_dir)
+                env = resolve_env(svc.env, svc.env_files, config_dir)
 
                 state.status = ServiceStatus.STARTING
                 self._reporter.info(f"[{name}] Starting…")

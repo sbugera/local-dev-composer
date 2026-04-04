@@ -18,7 +18,7 @@ class EnvCommand:
         self,
         config: WorkspaceConfig,
         service_name: str,
-        working_dir: Optional[str] = None,
+        config_dir: str = ".",
         show_inherited: bool = False,
         filter_prefix: Optional[str] = None,
     ) -> None:
@@ -27,8 +27,7 @@ class EnvCommand:
             self._reporter.error(f"Unknown service '{service_name}'")
             return
 
-        base_dir = working_dir or "."
-        resolved = resolve_env(svc.env, svc.env_files, base_dir)
+        resolved = resolve_env(svc.env, svc.env_files, config_dir)
 
         system_keys = set(os.environ.keys())
 
@@ -37,13 +36,13 @@ class EnvCommand:
             if filter_prefix and not key.upper().startswith(filter_prefix.upper()):
                 continue
             if not show_inherited and key in system_keys and key not in svc.env:
-                env_file_keys = self._collect_env_file_keys(svc.env_files, base_dir)
+                env_file_keys = self._collect_env_file_keys(svc.env_files, config_dir)
                 if key not in env_file_keys:
                     continue
-            source = self._source(key, svc.env, svc.env_files, base_dir, system_keys)
+            source = self._source(key, svc.env, svc.env_files, config_dir, system_keys)
             rows.append((key, value, source))
 
-        self._print(service_name, rows, svc.env_files)
+        self._print(service_name, rows, svc.env_files, config_dir)
 
     def _source(self, key, inline_env, env_files, base_dir, system_keys):
         if key in inline_env:
@@ -68,7 +67,7 @@ class EnvCommand:
                 keys.update(_parse_env_file(p).keys())
         return keys
 
-    def _print(self, service_name, rows, env_files):
+    def _print(self, service_name, rows, env_files, config_dir):
         try:
             from rich.console import Console
             from rich.table import Table
@@ -87,5 +86,9 @@ class EnvCommand:
                 print(f"{key}={value}  [{source}]")
 
         if env_files:
-            sources = ", ".join(env_files)
-            print(f"\nenv_files loaded: {sources}")
+            from pathlib import Path
+            resolved = [
+                str(Path(f) if Path(f).is_absolute() else Path(config_dir) / f)
+                for f in env_files
+            ]
+            print(f"\nenv_files: {', '.join(resolved)}")

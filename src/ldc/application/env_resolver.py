@@ -5,6 +5,9 @@ Merge order (later wins):
   1. Inherited system environment (os.environ)
   2. env_files entries, in listed order (each overrides the previous)
   3. Inline env dict (from composer.yml service.env)
+
+env_files are resolved relative to config_dir (where composer.yml lives),
+not relative to the service working directory.
 """
 from __future__ import annotations
 
@@ -16,12 +19,12 @@ from typing import Dict, List
 def resolve_env(
     service_env: Dict[str, str],
     env_files: List[str],
-    base_dir: str,
+    config_dir: str = ".",
 ) -> Dict[str, str]:
     merged = dict(os.environ)
 
     for env_file in env_files:
-        file_path = Path(env_file) if Path(env_file).is_absolute() else Path(base_dir) / env_file
+        file_path = Path(env_file) if Path(env_file).is_absolute() else Path(config_dir) / env_file
         if file_path.exists():
             merged.update(_parse_env_file(file_path))
 

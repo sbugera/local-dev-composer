@@ -119,6 +119,7 @@ def main() -> None:
     args = parser.parse_args()
 
     config_path = _find_config(args.file)
+    config_dir = str(config_path.parent)
     container = Container(ldc_dir=Path(args.ldc_dir))
     config = container.config_reader.read(config_path)
 
@@ -142,6 +143,7 @@ def main() -> None:
         container.install_cmd.execute(
             config,
             service_names=args.services or None,
+            config_dir=config_dir,
         )
 
     elif args.command == "up":
@@ -150,6 +152,7 @@ def main() -> None:
             service_names=args.services or None,
             group_name=args.group,
             skip_checks=args.skip_checks,
+            config_dir=config_dir,
         )
 
     elif args.command == "down":
@@ -177,6 +180,7 @@ def main() -> None:
         container.env_cmd.execute(
             config,
             service_name=args.service,
+            config_dir=config_dir,
             show_inherited=args.show_inherited,
             filter_prefix=args.filter_prefix,
         )
