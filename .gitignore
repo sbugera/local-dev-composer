@@ -25,6 +25,11 @@ logs/
 # Cloned service repos
 services/
 
+# Composer config (contains local paths and settings — never commit)
+composer.yml
+composer.*.yml
+!composer.example.yml
+
 # Env secrets
 .env
 .env.*
