@@ -102,7 +102,7 @@ class Service:
 
     # Environment
     env: Dict[str, str] = field(default_factory=dict)
-    env_file: Optional[str] = None     # path to .env file (merged on top of env)
+    env_files: List[str] = field(default_factory=list)  # merged in order; last wins
 
     # Lifecycle
     requires: Optional[Prerequisites] = None

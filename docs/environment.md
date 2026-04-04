@@ -7,8 +7,10 @@ The same variable name can hold different values for different services.
 
 ```
 1. Inherited system environment  (os.environ)
-2. env_file entries               (.env.my-service)
-3. Inline env block               (composer.yml service.env)
+2. env_files[0]                   first file
+3. env_files[1]                   second file (overrides first)
+   ...
+4. Inline env block               (composer.yml service.env) — always wins
 ```
 
 ## Example
@@ -34,22 +36,38 @@ Each process receives only its own `DATABASE_URL`. Neither sees the other's.
 
 Secrets and machine-specific values belong in `.env` files, not in `composer.yml`.
 
-```bash
-# .env.gateway
-DB_PASSWORD=secret123
-OAUTH_CLIENT_SECRET=abc
-```
-
 ```yaml
 # composer.yml
 services:
   gateway:
-    env_file: .env.gateway
+    env_files:
+      - .env.base           # shared defaults (e.g. NEXUS_URL, LOG_LEVEL)
+      - .env.gateway        # service-specific secrets; overrides .env.base
     env:
       DATABASE_URL: jdbc:postgresql://localhost:5432/gateway_db
 ```
 
-The inline `env` block wins over `env_file` if the same key appears in both.
+```bash
+# .env.base
+LOG_LEVEL=INFO
+NEXUS_URL=https://nexus.company.com
+
+# .env.gateway
+DB_PASSWORD=secret123
+LOG_LEVEL=DEBUG        # overrides .env.base
+```
+
+Single file is also accepted:
+
+```yaml
+env_files:
+  - .env.gateway
+
+# or legacy single-value form (still supported):
+env_file: .env.gateway
+```
+
+The inline `env` block always wins over any file.
 
 ## .env file syntax
 

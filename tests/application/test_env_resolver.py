@@ -1,5 +1,4 @@
 """Unit tests for per-service environment resolution."""
-import os
 import tempfile
 from pathlib import Path
 
@@ -16,8 +15,7 @@ class TestParseEnvFile:
 
     def test_basic_key_value(self):
         p = self._write("FOO=bar\nBAZ=qux\n")
-        result = _parse_env_file(p)
-        assert result == {"FOO": "bar", "BAZ": "qux"}
+        assert _parse_env_file(p) == {"FOO": "bar", "BAZ": "qux"}
 
     def test_quoted_values(self):
         p = self._write('KEY="hello world"\nKEY2=\'single\'\n')
@@ -27,34 +25,49 @@ class TestParseEnvFile:
 
     def test_comments_and_blanks(self):
         p = self._write("# comment\n\nFOO=1\n")
-        result = _parse_env_file(p)
-        assert result == {"FOO": "1"}
+        assert _parse_env_file(p) == {"FOO": "1"}
 
     def test_export_prefix(self):
         p = self._write("export MY_VAR=value\n")
-        result = _parse_env_file(p)
-        assert result == {"MY_VAR": "value"}
+        assert _parse_env_file(p) == {"MY_VAR": "value"}
 
 
 class TestResolveEnv:
 
     def test_inline_env_overrides_system(self, monkeypatch):
         monkeypatch.setenv("SHARED_VAR", "from-system")
-        result = resolve_env({"SHARED_VAR": "from-inline"}, None, ".")
+        result = resolve_env({"SHARED_VAR": "from-inline"}, [], ".")
         assert result["SHARED_VAR"] == "from-inline"
 
-    def test_env_file_merged(self, tmp_path, monkeypatch):
+    def test_env_file_merged(self, tmp_path):
         env_file = tmp_path / ".env"
         env_file.write_text("FILE_VAR=from-file\n", encoding="utf-8")
-        result = resolve_env({}, str(env_file), str(tmp_path))
+        result = resolve_env({}, [str(env_file)], str(tmp_path))
         assert result["FILE_VAR"] == "from-file"
 
     def test_inline_wins_over_file(self, tmp_path):
         env_file = tmp_path / ".env"
         env_file.write_text("X=from-file\n", encoding="utf-8")
-        result = resolve_env({"X": "from-inline"}, str(env_file), str(tmp_path))
+        result = resolve_env({"X": "from-inline"}, [str(env_file)], str(tmp_path))
         assert result["X"] == "from-inline"
 
     def test_missing_env_file_is_ignored(self):
-        result = resolve_env({"K": "v"}, ".nonexistent.env", ".")
+        result = resolve_env({"K": "v"}, [".nonexistent.env"], ".")
         assert result["K"] == "v"
+
+    def test_multiple_files_last_wins(self, tmp_path):
+        f1 = tmp_path / ".env.base"
+        f2 = tmp_path / ".env.local"
+        f1.write_text("X=base\nA=from-base\n", encoding="utf-8")
+        f2.write_text("X=local\n", encoding="utf-8")
+        result = resolve_env({}, [str(f1), str(f2)], str(tmp_path))
+        assert result["X"] == "local"
+        assert result["A"] == "from-base"
+
+    def test_multiple_files_order_matters(self, tmp_path):
+        f1 = tmp_path / ".env.1"
+        f2 = tmp_path / ".env.2"
+        f1.write_text("X=first\n", encoding="utf-8")
+        f2.write_text("X=second\n", encoding="utf-8")
+        assert resolve_env({}, [str(f1), str(f2)], str(tmp_path))["X"] == "second"
+        assert resolve_env({}, [str(f2), str(f1)], str(tmp_path))["X"] == "first"

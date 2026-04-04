@@ -84,7 +84,7 @@ class YamlConfigReader(IConfigReader):
             branch=raw.get("branch", "main"),
             dir=raw.get("dir"),
             env=raw.get("env", {}),
-            env_file=raw.get("env_file"),
+            env_files=self._parse_env_files(raw),
             requires=self._parse_prerequisites(raw.get("requires")),
             install=self._parse_install(raw.get("install")),
             start=self._parse_start(raw.get("start")),
@@ -92,6 +92,15 @@ class YamlConfigReader(IConfigReader):
             labels=raw.get("labels", {}),
             description=raw.get("description", ""),
         )
+
+    def _parse_env_files(self, raw: Dict[str, Any]) -> list:
+        if "env_files" in raw:
+            value = raw["env_files"]
+            return [value] if isinstance(value, str) else list(value)
+        if "env_file" in raw:
+            value = raw["env_file"]
+            return [value] if value else []
+        return []
 
     def _parse_prerequisites(self, raw: Optional[Dict]) -> Optional[Prerequisites]:
         if not raw:

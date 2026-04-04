@@ -45,7 +45,9 @@ services:
     env:
       SERVER_PORT: "8080"
       DATABASE_URL: jdbc:postgresql://localhost:5432/mydb
-    env_file: .env.my-service     # merged on top of env; secrets go here
+    env_files:                    # merged in order; last wins; secrets go here
+      - .env.base
+      - .env.my-service
 
     # Host prerequisites
     requires:

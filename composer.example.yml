@@ -44,7 +44,9 @@ services:
       SPRING_PROFILES_ACTIVE: native,local
       # Per-service env — same variable name can have different values
       # in different services (e.g. DATABASE_URL below)
-    env_file: .env.config-server    # optional — secrets go here, not in YAML
+    env_files:                       # merged in order; last wins
+      - .env.base
+      - .env.config-server
     install:
       command: mvn clean package -DskipTests -q
       working_dir: .

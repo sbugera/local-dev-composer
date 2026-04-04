@@ -3,51 +3,34 @@ Builds the per-service environment dictionary.
 
 Merge order (later wins):
   1. Inherited system environment (os.environ)
-  2. env_file entries  (if configured)
-  3. Inline env dict   (from composer.yml service.env)
+  2. env_files entries, in listed order (each overrides the previous)
+  3. Inline env dict (from composer.yml service.env)
 """
 from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Dict
+from typing import Dict, List
 
 
 def resolve_env(
     service_env: Dict[str, str],
-    env_file: "str | None",
+    env_files: List[str],
     base_dir: str,
 ) -> Dict[str, str]:
-    """
-    Build the full environment for a service subprocess.
+    merged = dict(os.environ)
 
-    Args:
-        service_env:  inline env block from the service config
-        env_file:     optional path to a .env file (relative to *base_dir*)
-        base_dir:     service working directory (used to resolve relative env_file)
-    """
-    merged = dict(os.environ)  # start with current process environment
-
-    if env_file:
-        file_path = Path(base_dir) / env_file if not Path(env_file).is_absolute() else Path(env_file)
+    for env_file in env_files:
+        file_path = Path(env_file) if Path(env_file).is_absolute() else Path(base_dir) / env_file
         if file_path.exists():
             merged.update(_parse_env_file(file_path))
 
-    merged.update(service_env)  # inline env wins over file
+    merged.update(service_env)
 
     return merged
 
 
 def _parse_env_file(path: Path) -> Dict[str, str]:
-    """
-    Parse a simple .env file.
-
-    Supports:
-      KEY=value
-      KEY="quoted value"
-      # comments
-      export KEY=value
-    """
     result: Dict[str, str] = {}
     for line in path.read_text(encoding="utf-8").splitlines():
         line = line.strip()
@@ -60,7 +43,6 @@ def _parse_env_file(path: Path) -> Dict[str, str]:
         key, _, value = line.partition("=")
         key = key.strip()
         value = value.strip()
-        # Strip surrounding quotes
         if len(value) >= 2 and value[0] == value[-1] and value[0] in ('"', "'"):
             value = value[1:-1]
         result[key] = value
