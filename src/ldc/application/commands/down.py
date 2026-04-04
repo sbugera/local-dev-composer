@@ -1,0 +1,52 @@
+"""Use case: stop running services in reverse dependency order."""
+from __future__ import annotations
+
+from typing import Dict, List, Optional
+
+from ldc.domain.graph import DependencyGraph
+from ldc.domain.models import ServiceState, ServiceStatus, WorkspaceConfig
+from ldc.ports.process_runner import IProcessRunner
+from ldc.ports.reporter import IReporter
+from ldc.ports.state_store import IStateStore
+
+
+class DownCommand:
+
+    def __init__(
+        self,
+        runner: IProcessRunner,
+        store: IStateStore,
+        reporter: IReporter,
+    ) -> None:
+        self._runner = runner
+        self._store = store
+        self._reporter = reporter
+
+    def execute(
+        self,
+        config: WorkspaceConfig,
+        service_names: Optional[List[str]] = None,
+        timeout_seconds: int = 15,
+    ) -> None:
+        targets = list(service_names or config.services.keys())
+
+        graph = DependencyGraph.from_services(config.services)
+        order = graph.shutdown_order(targets)
+
+        for name in order:
+            state = self._runner.get_state(name)
+            if state is None or state.pid is None:
+                self._reporter.info(f"[{name}] Not running — skipping")
+                continue
+
+            if not self._runner.is_alive(state):
+                self._reporter.info(f"[{name}] Process already gone")
+                state.status = ServiceStatus.STOPPED
+                continue
+
+            self._reporter.info(f"[{name}] Stopping (pid {state.pid})…")
+            try:
+                self._runner.stop(state, timeout_seconds)
+                self._reporter.success(f"[{name}] Stopped")
+            except Exception as exc:
+                self._reporter.error(f"[{name}] Stop error: {exc}")
