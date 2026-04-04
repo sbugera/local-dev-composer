@@ -15,7 +15,7 @@ class SubprocessGitClient(IGitClient):
     def clone(self, repo_url: str, dest: Path, branch: str = "main") -> None:
         dest.parent.mkdir(parents=True, exist_ok=True)
         self._run(
-            ["git", "clone", "--branch", branch, "--depth", "1", repo_url, str(dest)],
+            ["git", "clone", "--branch", branch, "--depth", "1", repo_url, dest.name],
             cwd=str(dest.parent),
         )
 
