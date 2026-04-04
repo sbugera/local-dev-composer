@@ -73,6 +73,12 @@ class Prerequisites:
 
 
 @dataclass
+class VenvConfig:
+    path: str = ".venv"         # relative to service dir
+    python: str = "python"      # python binary used to create the venv
+
+
+@dataclass
 class InstallConfig:
     command: str
     working_dir: str = "."
@@ -106,6 +112,7 @@ class Service:
 
     # Lifecycle
     requires: Optional[Prerequisites] = None
+    venv: Optional[VenvConfig] = None
     install: Optional[InstallConfig] = None
     start: Optional[StartConfig] = None
     health_check: Optional[HealthCheckConfig] = None

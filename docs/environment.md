@@ -84,3 +84,32 @@ export KEY=value     # export prefix is stripped
 System environment variables are inherited by all services unless overridden.
 This means `PATH`, `JAVA_HOME`, `USERPROFILE`, proxy settings, etc. are
 available to all service processes without repeating them in config.
+
+## Python virtual environments
+
+Add a `venv` block to isolate a Python service's dependencies from system Python:
+
+```yaml
+services:
+  user-service:
+    runtime: python
+    venv:
+      path: .venv        # created inside the service dir; default: .venv
+      python: python     # binary used to create it — e.g. python3.11
+    install:
+      command: pip install -r requirements.txt
+    start:
+      command: python -m uvicorn app.main:app --port 8001
+```
+
+Shorthand using all defaults:
+
+```yaml
+venv: true
+```
+
+ldc creates the venv on first `ldc install` or `ldc up` if it does not exist,
+then prepends `<service-dir>/.venv/Scripts` to `PATH` and sets `VIRTUAL_ENV`.
+All subsequent `pip`, `python`, and console-script commands resolve from the
+venv automatically — no command rewriting required.
+

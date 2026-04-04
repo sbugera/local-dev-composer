@@ -109,6 +109,9 @@ services:
       DATABASE_URL: postgresql://localhost:5432/users_db   # different DB from gateway!
       APP_PORT: "8001"
       LOG_LEVEL: DEBUG
+    venv:
+      path: .venv           # created under the service dir if absent
+      python: python        # binary used to create it
     install:
       command: pip install -r requirements.txt --quiet
     start:
