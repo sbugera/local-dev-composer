@@ -46,7 +46,7 @@ class InstallCommand:
             log_file = str(Path(config.log_dir) / f"{name}-install.log")
             env = resolve_env(svc.env, svc.env_files, config_dir)
             if svc.venv:
-                env.update(self._venv.ensure(svc.venv, working_dir))
+                env.update(self._venv.ensure(svc.venv, working_dir, env))
 
             self._reporter.info(f"[{name}] Installing: {svc.install.command}")
             try:
