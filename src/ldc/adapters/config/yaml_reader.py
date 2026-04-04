@@ -21,7 +21,6 @@ from ldc.domain.models import (
     Runtime,
     Service,
     StartConfig,
-    VenvConfig,
     WorkspaceConfig,
 )
 from ldc.ports.config_reader import IConfigReader
@@ -87,22 +86,11 @@ class YamlConfigReader(IConfigReader):
             env=raw.get("env", {}),
             env_files=self._parse_env_files(raw),
             requires=self._parse_prerequisites(raw.get("requires")),
-            venv=self._parse_venv(raw.get("venv")),
             install=self._parse_install(raw.get("install")),
             start=self._parse_start(raw.get("start")),
             health_check=self._parse_health_check(name, raw.get("health_check")),
             labels=raw.get("labels", {}),
             description=raw.get("description", ""),
-        )
-
-    def _parse_venv(self, raw: Optional[Any]) -> Optional[VenvConfig]:
-        if not raw:
-            return None
-        if raw is True:
-            return VenvConfig()
-        return VenvConfig(
-            path=raw.get("path", ".venv"),
-            python=raw.get("python", "python"),
         )
 
     def _parse_env_files(self, raw: Dict[str, Any]) -> list:

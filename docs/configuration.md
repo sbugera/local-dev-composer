@@ -63,13 +63,6 @@ services:
         - C:/config/secret.properties
       ports_free: [8080]          # checked before start
 
-    # Virtual environment (Python services)
-    venv:
-      path: .venv           # relative to service dir; default: .venv
-      python: python        # binary used to create it; e.g. python3.11
-    # Shorthand — uses all defaults:
-    # venv: true
-
     # Install step (run once, or on demand)
     install:
       command: mvn clean package -DskipTests -q

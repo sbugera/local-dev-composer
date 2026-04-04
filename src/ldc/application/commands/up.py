@@ -16,7 +16,6 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 from ldc.application.env_resolver import resolve_env
-from ldc.application.venv_manager import VenvManager
 from ldc.domain.graph import DependencyGraph
 from ldc.domain.models import (
     HealthCheckType,
@@ -44,7 +43,6 @@ class UpCommand:
         self._health = health
         self._checker = checker
         self._reporter = reporter
-        self._venv = VenvManager()
 
     def execute(
         self,
@@ -127,9 +125,6 @@ class UpCommand:
                 )
                 log_file = str(Path(config.log_dir) / f"{name}.log")
                 env = resolve_env(svc.env, svc.env_files, config_dir)
-                if svc.venv:
-                    env.update(self._venv.ensure(svc.venv, working_dir, env))
-
                 state.status = ServiceStatus.STARTING
                 self._reporter.info(f"[{name}] Starting…")
 

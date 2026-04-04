@@ -109,13 +109,10 @@ services:
       DATABASE_URL: postgresql://localhost:5432/users_db   # different DB from gateway!
       APP_PORT: "8001"
       LOG_LEVEL: DEBUG
-    venv:
-      path: .venv           # created under the service dir if absent
-      python: python        # binary used to create it
     install:
-      command: pip install -r requirements.txt --quiet
+      command: "python -m venv .venv && call .venv\\Scripts\\activate.bat && pip install -r requirements.txt --quiet"
     start:
-      command: python -m uvicorn app.main:app --host 0.0.0.0 --port 8001
+      command: "call .venv\\Scripts\\activate.bat && python -m uvicorn app.main:app --host 0.0.0.0 --port 8001"
     health_check:
       type: http
       url: http://localhost:8001/health

@@ -5,7 +5,6 @@ from pathlib import Path
 from typing import List, Optional
 
 from ldc.application.env_resolver import resolve_env
-from ldc.application.venv_manager import VenvManager
 from ldc.domain.models import Runtime, WorkspaceConfig
 from ldc.ports.installer import IInstaller
 from ldc.ports.reporter import IReporter
@@ -13,14 +12,9 @@ from ldc.ports.reporter import IReporter
 
 class InstallCommand:
 
-    def __init__(
-        self,
-        installer: IInstaller,
-        reporter: IReporter,
-    ) -> None:
+    def __init__(self, installer: IInstaller, reporter: IReporter) -> None:
         self._installer = installer
         self._reporter = reporter
-        self._venv = VenvManager()
 
     def execute(
         self,
@@ -45,8 +39,6 @@ class InstallCommand:
             working_dir = self._resolve_dir(config.root, svc.name, svc.dir, svc.install.working_dir)
             log_file = str(Path(config.log_dir) / f"{name}-install.log")
             env = resolve_env(svc.env, svc.env_files, config_dir)
-            if svc.venv:
-                env.update(self._venv.ensure(svc.venv, working_dir, env))
 
             self._reporter.info(f"[{name}] Installing: {svc.install.command}")
             try:

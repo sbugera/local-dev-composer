@@ -87,29 +87,17 @@ available to all service processes without repeating them in config.
 
 ## Python virtual environments
 
-Add a `venv` block to isolate a Python service's dependencies from system Python:
+Put venv creation and activation directly in the `install` and `start` commands:
 
 ```yaml
 services:
   user-service:
     runtime: python
-    venv:
-      path: .venv        # created inside the service dir; default: .venv
-      python: python     # binary used to create it — e.g. python3.11
     install:
-      command: pip install -r requirements.txt
+      command: "python -m venv .venv && call .venv\\Scripts\\activate.bat && pip install -r requirements.txt"
     start:
-      command: python -m uvicorn app.main:app --port 8001
+      command: "call .venv\\Scripts\\activate.bat && python -m uvicorn app.main:app --port 8001"
 ```
 
-Shorthand using all defaults:
-
-```yaml
-venv: true
-```
-
-ldc creates the venv on first `ldc install` or `ldc up` if it does not exist,
-then prepends `<service-dir>/.venv/Scripts` to `PATH` and sets `VIRTUAL_ENV`.
-All subsequent `pip`, `python`, and console-script commands resolve from the
-venv automatically — no command rewriting required.
+`call` is required on Windows to source the activate batch script so the subsequent command inherits the venv environment. On Linux/macOS use `source .venv/bin/activate` instead.
 
