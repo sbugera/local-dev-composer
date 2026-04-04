@@ -124,6 +124,10 @@ class WindowsProcessRunner(IProcessRunner):
     def get_state(self, service_name: str) -> Optional[ServiceState]:
         return self._states.get(service_name)
 
+    def update_state(self, state: ServiceState) -> None:
+        self._states[state.name] = state
+        self._persist()
+
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------

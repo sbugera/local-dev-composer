@@ -33,3 +33,7 @@ class IProcessRunner(ABC):
     @abstractmethod
     def get_state(self, service_name: str) -> Optional[ServiceState]:
         """Return the last known ServiceState for *service_name*, or None."""
+
+    @abstractmethod
+    def update_state(self, state: ServiceState) -> None:
+        """Persist an updated ServiceState (e.g. after health check resolves)."""

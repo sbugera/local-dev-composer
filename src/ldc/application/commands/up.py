@@ -95,6 +95,7 @@ class UpCommand:
                         )
                         state.status = ServiceStatus.FAILED
                         state.last_error = f"Prerequisite failures: {failures}"
+                        self._runner.update_state(state)
                         continue
 
                 # --- External services with no start command ---
@@ -109,11 +110,13 @@ class UpCommand:
                             )
                     else:
                         state.status = ServiceStatus.SKIPPED
+                    self._runner.update_state(state)
                     continue
 
                 if not svc.start:
                     self._reporter.warning(f"[{name}] No start config — skipping")
                     state.status = ServiceStatus.SKIPPED
+                    self._runner.update_state(state)
                     continue
 
                 # --- Start the process ---
@@ -135,12 +138,12 @@ class UpCommand:
                     state.status = ServiceStatus.FAILED
                     state.last_error = str(exc)
                     self._reporter.error(f"[{name}] Failed to start: {exc}")
+                    self._runner.update_state(state)
                     continue
 
                 # --- Health check ---
                 if svc.health_check:
                     if svc.health_check.type == HealthCheckType.PROCESS:
-                        # Poll is_alive for PROCESS type
                         healthy = self._wait_process_alive(state, svc.health_check.timeout_seconds)
                     else:
                         healthy = self._health.wait_healthy(svc.health_check)
@@ -154,7 +157,6 @@ class UpCommand:
                         state.last_error = "Health check timed out"
                         self._reporter.error(f"[{name}] Health check failed — check log: {log_file}")
                 else:
-                    # No health check: assume healthy if process is alive
                     time.sleep(1)
                     if self._runner.is_alive(state):
                         state.status = ServiceStatus.HEALTHY
@@ -163,6 +165,8 @@ class UpCommand:
                         state.status = ServiceStatus.FAILED
                         state.last_error = "Process exited immediately"
                         self._reporter.error(f"[{name}] Process exited — check log: {log_file}")
+
+                self._runner.update_state(state)
 
         finally:
             self._reporter.stop_live_dashboard()
