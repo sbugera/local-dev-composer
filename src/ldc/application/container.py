@@ -22,6 +22,7 @@ from ldc.application.commands.check import CheckCommand
 from ldc.application.commands.clone import CloneCommand
 from ldc.application.commands.doctor import DoctorCommand
 from ldc.application.commands.down import DownCommand
+from ldc.application.commands.env import EnvCommand
 from ldc.application.commands.install import InstallCommand
 from ldc.application.commands.logs import LogsCommand
 from ldc.application.commands.status import StatusCommand
@@ -69,3 +70,4 @@ class Container:
         self.doctor_cmd = DoctorCommand(
             self.prereq_checker, self.git, self.runner, self.reporter
         )
+        self.env_cmd = EnvCommand(self.reporter)

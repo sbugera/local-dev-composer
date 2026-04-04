@@ -113,6 +113,20 @@ ldc logs gateway -f            # follow (tail -f), Ctrl+C to stop
 
 ---
 
+## env
+
+Show the fully-resolved environment for a service after all merging (system → env_files → inline env).
+
+```bash
+ldc env gateway                    # variables from env_files + inline env
+ldc env gateway --all              # also include inherited system variables
+ldc env gateway --filter SPRING    # only variables starting with SPRING
+```
+
+Each row shows the variable name, value, and where it came from (`inline`, filename, or `system`).
+
+---
+
 ## doctor
 
 Full diagnostic — checks everything and prints a numbered action list.

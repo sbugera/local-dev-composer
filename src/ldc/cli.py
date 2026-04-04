@@ -104,6 +104,14 @@ def main() -> None:
     p_logs.add_argument("-n", "--tail", type=int, default=50, metavar="N",
                         help="Number of lines to show (default: 50)")
 
+    # ---- env ----
+    p_env = sub.add_parser("env", help="Show resolved environment variables for a service")
+    p_env.add_argument("service", help="Service name")
+    p_env.add_argument("--all", dest="show_inherited", action="store_true",
+                       help="Include inherited system variables")
+    p_env.add_argument("--filter", metavar="PREFIX", dest="filter_prefix",
+                       help="Only show variables starting with PREFIX")
+
     # ---- doctor ----
     p_doctor = sub.add_parser("doctor", help="Full diagnostic with fix suggestions")
     p_doctor.add_argument("services", nargs="*")
@@ -163,6 +171,14 @@ def main() -> None:
             service_name=args.service,
             follow=args.follow,
             tail=args.tail,
+        )
+
+    elif args.command == "env":
+        container.env_cmd.execute(
+            config,
+            service_name=args.service,
+            show_inherited=args.show_inherited,
+            filter_prefix=args.filter_prefix,
         )
 
     elif args.command == "doctor":
