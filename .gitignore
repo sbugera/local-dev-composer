@@ -23,7 +23,7 @@ logs/
 *.log
 
 # Cloned service repos
-services/
+repos/
 
 # Composer config (contains local paths and settings — never commit)
 composer.yml

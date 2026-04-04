@@ -4,7 +4,7 @@
 # ============================================================
 
 workspace:
-  root: ./services          # All repos are cloned here unless 'dir' is set per-service
+  root: ./repos             # All repos are cloned here unless 'dir' is set per-service
   log_dir: ./logs           # Per-service log files land here
 
 # ============================================================
