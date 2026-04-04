@@ -92,6 +92,36 @@ python ldc.py doctor
 python ldc.py logs gateway -f
 ```
 
+## Documentation
+
+```
+docs/
+├── installation.md      Setup, Nexus proxy, direct-script mode
+├── configuration.md     Full composer.yml schema reference
+├── commands.md          All CLI commands with options and examples
+├── groups.md            Named service sets, smart selection
+├── environment.md       Per-service env isolation, .env files, merge order
+├── prerequisites.md     Runtime/command/folder/port checks
+├── health-checks.md     HTTP, TCP, command, process health check types
+├── state-and-logs.md    .ldc/state.json, log files, clearing state
+├── architecture.md      Hexagonal design, layers, how to extend
+└── testing.md           Running tests, writing new ones
+```
+
+**Keep docs in sync with code.** After any change that affects user-facing behaviour:
+
+- New command → add to `docs/commands.md`
+- New health check type → add to `docs/health-checks.md`
+- New prerequisite check → add to `docs/prerequisites.md`
+- New config field → add to `docs/configuration.md`
+- New adapter or port → update `docs/architecture.md`
+- Architecture change → update both `docs/architecture.md` and `CLAUDE.md`
+- `README.md` links to every doc file — update the table if files are added or renamed
+
+Docs are concise and technical: code snippets first, prose only where necessary.
+
+---
+
 ## Adding a new health check type
 
 1. Create `src/ldc/adapters/health/my_checker.py` implementing `IHealthChecker`
