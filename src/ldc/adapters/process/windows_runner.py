@@ -134,9 +134,10 @@ class WindowsProcessRunner(IProcessRunner):
 
     def _build_command(self, service: Service) -> list:
         cfg = service.start
-        parts = cfg.command.split()
-        parts.extend(cfg.args)
-        return parts
+        full_cmd = cfg.command
+        if cfg.args:
+            full_cmd += " " + " ".join(cfg.args)
+        return ["cmd", "/c", full_cmd]
 
     def _persist(self) -> None:
         self._store.save(self._states)

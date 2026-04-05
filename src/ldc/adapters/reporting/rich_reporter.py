@@ -145,6 +145,8 @@ class RichReporter(IReporter):
         if self._live_thread:
             self._live_thread.join(timeout=2)
         if self._live:
+            if self._live_states is not None:
+                self._live.update(self._build_status_table(self._live_states))
             self._live.stop()
             self._live = None
 
