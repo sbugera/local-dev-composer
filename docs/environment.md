@@ -77,6 +77,27 @@ KEY="value with spaces"
 KEY='single quoted'
 export KEY=value     # export prefix is stripped
 # comments ignored
+KEY2=${KEY}/suffix   # variable expansion supported
+```
+
+## Variable expansion
+
+`${VAR}` is expanded in both `.env` files and inline `env:` values.
+Expansion context: system env + values from earlier env_files + values already parsed in the same file (top to bottom).
+Unresolved references are kept as-is.
+
+```bash
+# .env.base
+DB_HOST=localhost
+
+# .env.my-service
+DB_URL=jdbc:postgresql://${DB_HOST}/mydb   # expands using .env.base
+```
+
+```yaml
+# composer.yml — inline env: also supports expansion
+env:
+  DB_URL: jdbc:postgresql://${DB_HOST}/mydb   # expanded from system env or env_files
 ```
 
 ## System env passthrough

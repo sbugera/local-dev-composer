@@ -89,6 +89,27 @@ services:
 
 ---
 
+## Variable expansion
+
+`${VAR}` syntax is supported in both `env_files` and inline `env:` values.
+Variables are expanded against: system environment → values from earlier env_files → values already defined in the same file.
+Unresolved references are left as-is.
+
+```yaml
+# .env.base
+DB_HOST=localhost
+
+# composer.yml
+services:
+  my-service:
+    env_files:
+      - .env.base
+    env:
+      DB_URL: jdbc:postgresql://${DB_HOST}/mydb   # expanded from .env.base
+```
+
+---
+
 ## Health check types
 
 | type | required fields | description |
