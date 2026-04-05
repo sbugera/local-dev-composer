@@ -112,6 +112,34 @@ class DependencyGraph:
         """Reverse of startup_order — dependents are stopped before dependencies."""
         return list(reversed(self.startup_order(names)))
 
+    def shutdown_order_explicit(self, names: List[str]) -> List[str]:
+        """
+        Stop exactly *names* in safe order (dependents before dependencies),
+        without expanding to transitive dependencies.
+        """
+        name_set = set(names)
+        in_degree: Dict[str, int] = {n: 0 for n in name_set}
+        reverse_adj: Dict[str, List[str]] = defaultdict(list)
+
+        for node in name_set:
+            for dep in self._adj.get(node, []):
+                if dep in name_set:
+                    in_degree[node] += 1
+                    reverse_adj[dep].append(node)
+
+        queue: deque[str] = deque(n for n in name_set if in_degree[n] == 0)
+        order: List[str] = []
+
+        while queue:
+            node = queue.popleft()
+            order.append(node)
+            for dependent in reverse_adj[node]:
+                in_degree[dependent] -= 1
+                if in_degree[dependent] == 0:
+                    queue.append(dependent)
+
+        return list(reversed(order))
+
     def dependents_of(self, name: str) -> List[str]:
         """Return services that directly depend on *name*."""
         return [n for n, deps in self._adj.items() if name in deps]

@@ -31,7 +31,14 @@ class DownCommand:
         targets = list(service_names or config.services.keys())
 
         graph = DependencyGraph.from_services(config.services)
-        order = graph.shutdown_order(targets)
+        # When stopping specific services, stop only what was asked — do not
+        # pull in transitive dependencies (they may be shared by other services).
+        # When stopping all services, use full reverse-dependency order so that
+        # dependents are stopped before the services they rely on.
+        if service_names:
+            order = graph.shutdown_order_explicit(targets)
+        else:
+            order = graph.shutdown_order(targets)
 
         for name in order:
             state = self._runner.get_state(name)

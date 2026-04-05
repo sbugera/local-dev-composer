@@ -74,15 +74,20 @@ Shows a live Rich dashboard updating every 500ms.
 
 ## down
 
-Stop services in reverse dependency order (dependents first).
+Stop services.
 
 ```bash
-ldc down                       # all services
-ldc down gateway               # one service
-ldc down gateway --timeout 30  # custom graceful-stop timeout (seconds)
+ldc down                               # all services, reverse dependency order (dependents first)
+ldc down gateway                       # only gateway — dependencies are not touched
+ldc down gateway user-service          # only these two, in safe order relative to each other
+ldc down gateway --timeout 30          # custom graceful-stop timeout (seconds)
 ```
 
-Sends `SIGTERM`, waits for `--timeout`, then `SIGKILL` if still running.
+When stopping **specific services**, only the named services are stopped — their dependencies are left running (other services may still need them).
+
+When stopping **all services** (no args), reverse dependency order is used so dependents are stopped before the services they rely on.
+
+Stops gracefully: sends `SIGTERM` to child processes then the parent, waits up to `--timeout` seconds, then force-kills (`SIGKILL`) anything still alive.
 
 ---
 
