@@ -12,8 +12,11 @@ not relative to the service working directory.
 from __future__ import annotations
 
 import os
+import re
 from pathlib import Path
 from typing import Dict, List
+
+_VAR_RE = re.compile(r"\$\{([^}]+)\}")
 
 
 def resolve_env(
@@ -26,14 +29,14 @@ def resolve_env(
     for env_file in env_files:
         file_path = Path(env_file) if Path(env_file).is_absolute() else Path(config_dir) / env_file
         if file_path.exists():
-            merged.update(_parse_env_file(file_path))
+            merged.update(_parse_env_file(file_path, merged))
 
     merged.update(service_env)
 
     return merged
 
 
-def _parse_env_file(path: Path) -> Dict[str, str]:
+def _parse_env_file(path: Path, context: Dict[str, str] = {}) -> Dict[str, str]:
     result: Dict[str, str] = {}
     for line in path.read_text(encoding="utf-8").splitlines():
         line = line.strip()
@@ -48,5 +51,11 @@ def _parse_env_file(path: Path) -> Dict[str, str]:
         value = value.strip()
         if len(value) >= 2 and value[0] == value[-1] and value[0] in ('"', "'"):
             value = value[1:-1]
+        # Expand ${VAR} against already-merged context + values parsed so far
+        value = _expand(value, {**context, **result})
         result[key] = value
     return result
+
+
+def _expand(value: str, context: Dict[str, str]) -> str:
+    return _VAR_RE.sub(lambda m: context.get(m.group(1), m.group(0)), value)
