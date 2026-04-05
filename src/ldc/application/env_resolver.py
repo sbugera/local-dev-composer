@@ -31,7 +31,7 @@ def resolve_env(
         if file_path.exists():
             merged.update(_parse_env_file(file_path, merged))
 
-    merged.update(service_env)
+    merged.update({k: _expand(v, merged) for k, v in service_env.items()})
 
     return merged
 
