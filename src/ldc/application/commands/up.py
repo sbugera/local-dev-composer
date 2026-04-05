@@ -66,6 +66,13 @@ class UpCommand:
         if states is None:
             states = {}
 
+        # Seed from persisted state so already-running services are not lost
+        for name in order:
+            if name not in states:
+                stored = self._runner.get_state(name)
+                if stored is not None:
+                    states[name] = stored
+
         # Initialise pending state for every service we're about to start
         for name in order:
             if name not in states or states[name].status not in (
