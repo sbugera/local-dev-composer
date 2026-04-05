@@ -11,6 +11,22 @@ ldc [-f FILE] [--ldc-dir DIR] <command> [options]
 
 ---
 
+## bootstrap
+
+Full onboarding sequence: clone → install → start. The single command a new developer needs.
+
+```bash
+ldc bootstrap                        # everything
+ldc bootstrap --group gateway-dev    # minimum services for one feature area
+ldc bootstrap --skip-checks          # skip prerequisite checks
+```
+
+If a service fails to clone, it is skipped in install and start.
+If a service fails to install, it is skipped in start.
+Other services always continue.
+
+---
+
 ## clone
 
 Clone or update service repositories.

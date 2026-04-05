@@ -68,6 +68,12 @@ def main() -> None:
 
     sub = parser.add_subparsers(dest="command", required=True)
 
+    # ---- bootstrap ----
+    p_bootstrap = sub.add_parser("bootstrap", help="Clone, install, and start all services")
+    p_bootstrap.add_argument("services", nargs="*", help="Service names (all if omitted)")
+    p_bootstrap.add_argument("-g", "--group", metavar="GROUP", help="Bootstrap a named group")
+    p_bootstrap.add_argument("--skip-checks", action="store_true", help="Skip prerequisite checks")
+
     # ---- clone ----
     p_clone = sub.add_parser("clone", help="Clone or update service repositories")
     p_clone.add_argument("services", nargs="*", help="Service names (all if omitted)")
@@ -136,7 +142,16 @@ def main() -> None:
     config = container.config_reader.read(config_path)
 
     # ------------------------------------------------------------------
-    if args.command == "clone":
+    if args.command == "bootstrap":
+        container.bootstrap_cmd.execute(
+            config,
+            service_names=args.services or None,
+            group_name=args.group,
+            skip_checks=args.skip_checks,
+            config_dir=config_dir,
+        )
+
+    elif args.command == "clone":
         container.clone_cmd.execute(
             config,
             service_names=args.services or None,

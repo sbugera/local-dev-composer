@@ -18,6 +18,7 @@ from ldc.adapters.prerequisites.system_checker import SystemPrerequisiteChecker
 from ldc.adapters.process.windows_runner import WindowsProcessRunner
 from ldc.adapters.reporting.rich_reporter import RichReporter
 from ldc.adapters.state.json_store import JsonStateStore
+from ldc.application.commands.bootstrap import BootstrapCommand
 from ldc.application.commands.check import CheckCommand
 from ldc.application.commands.clone import CloneCommand
 from ldc.application.commands.doctor import DoctorCommand
@@ -73,6 +74,9 @@ class Container:
             self.prereq_checker, self.git, self.runner, self.reporter
         )
         self.env_cmd = EnvCommand(self.reporter)
+        self.bootstrap_cmd = BootstrapCommand(
+            self.clone_cmd, self.install_cmd, self.up_cmd, self.reporter
+        )
         self.restart_cmd = RestartCommand(self.down_cmd, self.up_cmd, self.reporter)
         self.rebuild_cmd = RebuildCommand(
             self.down_cmd, self.install_cmd, self.up_cmd, self.reporter
