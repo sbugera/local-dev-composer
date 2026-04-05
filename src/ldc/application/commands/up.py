@@ -159,9 +159,12 @@ class UpCommand:
                         state.last_health_check_at = datetime.now(timezone.utc).isoformat()
                         self._reporter.success(f"[{name}] Healthy (pid {state.pid})")
                     else:
-                        state.status = ServiceStatus.UNHEALTHY
+                        state.status = ServiceStatus.FAILED
                         state.last_error = "Health check timed out"
                         self._reporter.error(f"[{name}] Health check failed — check log: {log_file}")
+                        if self._runner.is_alive(state):
+                            self._runner.stop(state)
+                            self._reporter.info(f"[{name}] Process killed after health check failure")
                 else:
                     time.sleep(1)
                     if self._runner.is_alive(state):
