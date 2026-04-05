@@ -112,6 +112,18 @@ def main() -> None:
     p_env.add_argument("--filter", metavar="PREFIX", dest="filter_prefix",
                        help="Only show variables starting with PREFIX")
 
+    # ---- restart ----
+    p_restart = sub.add_parser("restart", help="Stop then start services (no install)")
+    p_restart.add_argument("services", nargs="*", help="Service names (all if omitted)")
+    p_restart.add_argument("-g", "--group", metavar="GROUP", help="Restart a named group")
+    p_restart.add_argument("--skip-checks", action="store_true", help="Skip prerequisite checks")
+
+    # ---- rebuild ----
+    p_rebuild = sub.add_parser("rebuild", help="Stop, install, then start services")
+    p_rebuild.add_argument("services", nargs="*", help="Service names (all if omitted)")
+    p_rebuild.add_argument("-g", "--group", metavar="GROUP", help="Rebuild a named group")
+    p_rebuild.add_argument("--skip-checks", action="store_true", help="Skip prerequisite checks")
+
     # ---- doctor ----
     p_doctor = sub.add_parser("doctor", help="Full diagnostic with fix suggestions")
     p_doctor.add_argument("services", nargs="*")
@@ -183,6 +195,29 @@ def main() -> None:
             config_dir=config_dir,
             show_inherited=args.show_inherited,
             filter_prefix=args.filter_prefix,
+        )
+
+    elif args.command == "restart":
+        container.restart_cmd.execute(
+            config,
+            service_names=args.services or None,
+            group_name=args.group,
+            skip_checks=args.skip_checks,
+            config_dir=config_dir,
+        )
+
+    elif args.command == "rebuild":
+        if not args.services and not args.group:
+            answer = input("Rebuild ALL services? This will stop, reinstall, and restart everything. [y/N] ")
+            if answer.strip().lower() != "y":
+                print("Aborted.")
+                sys.exit(0)
+        container.rebuild_cmd.execute(
+            config,
+            service_names=args.services or None,
+            group_name=args.group,
+            skip_checks=args.skip_checks,
+            config_dir=config_dir,
         )
 
     elif args.command == "doctor":

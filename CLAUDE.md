@@ -96,7 +96,7 @@ python ldc.py logs gateway -f
 
 ```
 docs/
-├── installation.md      Setup, Nexus proxy, direct-script mode
+├── installation.md      Setup, direct-script mode
 ├── configuration.md     Full composer.yml schema reference
 ├── commands.md          All CLI commands with options and examples
 ├── groups.md            Named service sets, smart selection

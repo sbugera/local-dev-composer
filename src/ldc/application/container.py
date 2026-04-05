@@ -25,6 +25,8 @@ from ldc.application.commands.down import DownCommand
 from ldc.application.commands.env import EnvCommand
 from ldc.application.commands.install import InstallCommand
 from ldc.application.commands.logs import LogsCommand
+from ldc.application.commands.rebuild import RebuildCommand
+from ldc.application.commands.restart import RestartCommand
 from ldc.application.commands.status import StatusCommand
 from ldc.application.commands.up import UpCommand
 from ldc.application.installer_service import SubprocessInstaller
@@ -71,3 +73,7 @@ class Container:
             self.prereq_checker, self.git, self.runner, self.reporter
         )
         self.env_cmd = EnvCommand(self.reporter)
+        self.restart_cmd = RestartCommand(self.down_cmd, self.up_cmd, self.reporter)
+        self.rebuild_cmd = RebuildCommand(
+            self.down_cmd, self.install_cmd, self.up_cmd, self.reporter
+        )

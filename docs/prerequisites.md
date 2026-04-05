@@ -33,7 +33,7 @@ Uses `shutil.which()`. Fix hint: `where mvn` to diagnose on Windows.
 
 ```yaml
 requires:
-  env_vars: [JAVA_HOME, NEXUS_USER]
+  env_vars: [JAVA_HOME]
 ```
 
 Checks presence and non-empty value.

@@ -41,7 +41,7 @@ Secrets and machine-specific values belong in `.env` files, not in `composer.yml
 services:
   gateway:
     env_files:
-      - .env.base           # shared defaults (e.g. NEXUS_URL, LOG_LEVEL)
+      - .env.base           # shared defaults (e.g. LOG_LEVEL)
       - .env.gateway        # service-specific secrets; overrides .env.base
     env:
       DATABASE_URL: jdbc:postgresql://localhost:5432/gateway_db
@@ -50,7 +50,6 @@ services:
 ```bash
 # .env.base
 LOG_LEVEL=INFO
-NEXUS_URL=https://nexus.company.com
 
 # .env.gateway
 DB_PASSWORD=secret123

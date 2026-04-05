@@ -40,7 +40,7 @@ ldc down                       # stop everything
 
 | topic | description |
 |-------|-------------|
-| [Installation](docs/installation.md) | Setup, Nexus proxy, direct-script mode |
+| [Installation](docs/installation.md) | Setup, direct-script mode |
 | [Configuration](docs/configuration.md) | Full `composer.yml` schema reference |
 | [Commands](docs/commands.md) | All CLI commands with options |
 | [Groups](docs/groups.md) | Named service sets, smart selection |

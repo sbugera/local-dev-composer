@@ -132,6 +132,39 @@ Each row shows the variable name, value, and where it came from (`inline`, filen
 
 ---
 
+## restart
+
+Stop then start services without reinstalling.
+
+```bash
+ldc restart backend                    # restart one service
+ldc restart backend gateway            # restart multiple services
+ldc restart --group fullstack          # restart a named group
+ldc restart backend --skip-checks      # skip prerequisite checks on start
+ldc restart                            # restart ALL services
+```
+
+Stops in reverse dependency order, starts in dependency order.
+
+---
+
+## rebuild
+
+Stop, reinstall, then start services. Use this after code changes.
+
+```bash
+ldc rebuild backend                    # rebuild one service
+ldc rebuild backend gateway ui         # rebuild multiple services
+ldc rebuild --group fullstack          # rebuild a named group
+ldc rebuild backend --skip-checks      # skip prerequisite checks on start
+ldc rebuild                            # rebuild ALL services (prompts for confirmation)
+```
+
+Sequence per run: stop all targets → install each in dependency order → start successfully installed services.
+If `install` fails for a service, its `up` is skipped but other services continue.
+
+---
+
 ## doctor
 
 Full diagnostic — checks everything and prints a numbered action list.
