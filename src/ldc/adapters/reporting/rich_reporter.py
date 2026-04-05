@@ -52,25 +52,29 @@ class RichReporter(IReporter):
 
     def info(self, message: str) -> None:
         if RICH_AVAILABLE:
-            self._console.print(f"[dim]ℹ[/dim]  {message}")
+            from rich.markup import escape
+            self._console.print(f"[dim]ℹ[/dim]  {escape(message)}")
         else:
             print(f"  {message}")
 
     def success(self, message: str) -> None:
         if RICH_AVAILABLE:
-            self._console.print(f"[green]✔[/green]  {message}")
+            from rich.markup import escape
+            self._console.print(f"[green]✔[/green]  {escape(message)}")
         else:
             print(f"✔ {message}")
 
     def warning(self, message: str) -> None:
         if RICH_AVAILABLE:
-            self._console.print(f"[yellow]⚠[/yellow]  {message}")
+            from rich.markup import escape
+            self._console.print(f"[yellow]⚠[/yellow]  {escape(message)}")
         else:
             print(f"⚠ {message}")
 
     def error(self, message: str) -> None:
         if RICH_AVAILABLE:
-            self._console.print(f"[bold red]✗[/bold red]  {message}")
+            from rich.markup import escape
+            self._console.print(f"[bold red]✗[/bold red]  {escape(message)}")
         else:
             print(f"✗ {message}")
 

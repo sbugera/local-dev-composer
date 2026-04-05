@@ -134,6 +134,7 @@ class UpCommand:
                 env = resolve_env(svc.env, svc.env_files, config_dir)
                 state.status = ServiceStatus.STARTING
                 self._reporter.info(f"[{name}] Starting…")
+                t = time.monotonic()
 
                 try:
                     new_state = self._runner.start(svc, working_dir, env, log_file)
@@ -143,7 +144,7 @@ class UpCommand:
                 except Exception as exc:
                     state.status = ServiceStatus.FAILED
                     state.last_error = str(exc)
-                    self._reporter.error(f"[{name}] Failed to start: {exc}")
+                    self._reporter.error(f"[{name}] Failed to start: {exc} ({time.monotonic()-t:.1f}s)")
                     self._runner.update_state(state)
                     continue
 
@@ -154,26 +155,28 @@ class UpCommand:
                     else:
                         healthy = self._health.wait_healthy(svc.health_check)
 
+                    elapsed = f"{time.monotonic()-t:.1f}s"
                     if healthy:
                         state.status = ServiceStatus.HEALTHY
                         state.last_health_check_at = datetime.now(timezone.utc).isoformat()
-                        self._reporter.success(f"[{name}] Healthy (pid {state.pid})")
+                        self._reporter.success(f"[{name}] Healthy (pid {state.pid}) ({elapsed})")
                     else:
                         state.status = ServiceStatus.FAILED
                         state.last_error = "Health check timed out"
-                        self._reporter.error(f"[{name}] Health check failed — check log: {log_file}")
+                        self._reporter.error(f"[{name}] Health check failed ({elapsed}) — check log: {log_file}")
                         if self._runner.is_alive(state):
                             self._runner.stop(state)
                             self._reporter.info(f"[{name}] Process killed after health check failure")
                 else:
                     time.sleep(1)
+                    elapsed = f"{time.monotonic()-t:.1f}s"
                     if self._runner.is_alive(state):
                         state.status = ServiceStatus.HEALTHY
-                        self._reporter.success(f"[{name}] Started (pid {state.pid})")
+                        self._reporter.success(f"[{name}] Started (pid {state.pid}) ({elapsed})")
                     else:
                         state.status = ServiceStatus.FAILED
                         state.last_error = "Process exited immediately"
-                        self._reporter.error(f"[{name}] Process exited — check log: {log_file}")
+                        self._reporter.error(f"[{name}] Process exited ({elapsed}) — check log: {log_file}")
 
                 self._runner.update_state(state)
 

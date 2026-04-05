@@ -1,6 +1,7 @@
 """Use case: run install commands for services."""
 from __future__ import annotations
 
+import time
 from pathlib import Path
 from typing import List, Optional
 
@@ -41,11 +42,12 @@ class InstallCommand:
             env = resolve_env(svc.env, svc.env_files, config_dir)
 
             self._reporter.info(f"[{name}] Installing: {svc.install.command}")
+            t = time.monotonic()
             try:
                 self._installer.install(name, svc.install, working_dir, env, log_file)
-                self._reporter.success(f"[{name}] Install complete")
+                self._reporter.success(f"[{name}] Install complete ({time.monotonic()-t:.1f}s)")
             except Exception as exc:
-                self._reporter.error(f"[{name}] Install failed: {exc}")
+                self._reporter.error(f"[{name}] Install failed: {exc} ({time.monotonic()-t:.1f}s)")
 
     @staticmethod
     def _resolve_dir(

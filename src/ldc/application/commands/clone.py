@@ -1,6 +1,7 @@
 """Use case: clone (or update) service repositories."""
 from __future__ import annotations
 
+import time
 from pathlib import Path
 from typing import List, Optional
 
@@ -50,22 +51,24 @@ class CloneCommand:
             if self._git.is_cloned(dest):
                 if pull:
                     self._reporter.info(f"[{name}] Pulling latest from {svc.branch}…")
+                    t = time.monotonic()
                     try:
                         self._git.pull(dest, svc.branch)
-                        self._reporter.success(f"[{name}] Up to date")
+                        self._reporter.success(f"[{name}] Up to date ({time.monotonic()-t:.1f}s)")
                     except Exception as exc:
-                        self._reporter.error(f"[{name}] Pull failed: {exc}")
+                        self._reporter.error(f"[{name}] Pull failed: {exc} ({time.monotonic()-t:.1f}s)")
                 else:
                     self._reporter.info(f"[{name}] Already cloned at {dest} — skipping")
             else:
                 self._reporter.info(
                     f"[{name}] Cloning {svc.repo} @ {svc.branch} → {dest}…"
                 )
+                t = time.monotonic()
                 try:
                     self._git.clone(svc.repo, dest, svc.branch)
-                    self._reporter.success(f"[{name}] Cloned successfully")
+                    self._reporter.success(f"[{name}] Cloned successfully ({time.monotonic()-t:.1f}s)")
                 except Exception as exc:
-                    self._reporter.error(f"[{name}] Clone failed: {exc}")
+                    self._reporter.error(f"[{name}] Clone failed: {exc} ({time.monotonic()-t:.1f}s)")
 
     @staticmethod
     def _resolve_dir(workspace_root: str, name: str, override: Optional[str]) -> Path:

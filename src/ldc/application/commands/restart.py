@@ -1,6 +1,7 @@
 """Use case: stop → start services (no install)."""
 from __future__ import annotations
 
+import time
 from typing import List, Optional
 
 from ldc.application.commands.down import DownCommand
@@ -30,6 +31,7 @@ class RestartCommand:
         config_dir: str = ".",
     ) -> None:
         targets = self._resolve_targets(config, service_names, group_name)
+        total_start = time.monotonic()
 
         self._reporter.info("Stopping services…")
         self._down.execute(config, service_names=targets)
@@ -41,6 +43,8 @@ class RestartCommand:
             skip_checks=skip_checks,
             config_dir=config_dir,
         )
+
+        self._reporter.info(f"Restart complete in {time.monotonic() - total_start:.1f}s")
 
     @staticmethod
     def _resolve_targets(

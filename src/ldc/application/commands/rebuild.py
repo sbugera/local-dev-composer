@@ -1,13 +1,14 @@
 """Use case: stop → install → start services (full rebuild cycle)."""
 from __future__ import annotations
 
+import time
 from typing import Dict, List, Optional
 
 from ldc.application.commands.down import DownCommand
 from ldc.application.commands.install import InstallCommand
 from ldc.application.commands.up import UpCommand
 from ldc.domain.graph import DependencyGraph
-from ldc.domain.models import WorkspaceConfig, ServiceState
+from ldc.domain.models import WorkspaceConfig
 from ldc.ports.reporter import IReporter
 
 
@@ -34,12 +35,13 @@ class RebuildCommand:
         config_dir: str = ".",
     ) -> None:
         targets = self._resolve_targets(config, service_names, group_name)
+        total_start = time.monotonic()
 
         # Stop all targets first (reverse dependency order)
         self._reporter.info("Stopping services…")
         self._down.execute(config, service_names=targets)
 
-        # Install each target; track which ones succeeded
+        # Install each target in dependency order; track which ones failed
         graph = DependencyGraph.from_services(config.services)
         start_order = graph.startup_order(targets)
         failed_install: set = set()
@@ -62,6 +64,8 @@ class RebuildCommand:
                 skip_checks=skip_checks,
                 config_dir=config_dir,
             )
+
+        self._reporter.info(f"Rebuild complete in {time.monotonic() - total_start:.1f}s")
 
     @staticmethod
     def _resolve_targets(
