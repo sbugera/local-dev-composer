@@ -61,14 +61,20 @@ class InstallCommand:
                 ok = False
             return name, ok, msgs
 
+        group = len(targets) > 1
         with ThreadPoolExecutor(max_workers=workers) as pool:
             futures = {pool.submit(_install_one, name): name for name in targets}
+            first = True
             for future in as_completed(futures):
                 name, ok, msgs = future.result()
                 if not ok:
                     failed.add(name)
-                for method, msg in msgs:
-                    getattr(self._reporter, method)(msg)
+                if msgs:
+                    if group and not first:
+                        self._reporter.info("")
+                    for method, msg in msgs:
+                        getattr(self._reporter, method)(msg)
+                    first = False
 
         return failed
 
