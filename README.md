@@ -51,7 +51,7 @@ services:
       url: http://localhost:3000
 ```
 
-See [`composer.example.yml`](composer.example.yml) for a full working example and [`docs/configuration.md`](docs/configuration.md) for the complete schema reference.
+See [`composer.example.yml`](https://github.com/sbugera/local-dev-composer/blob/master/composer.example.yml) for a full working example and [Configuration](https://github.com/sbugera/local-dev-composer/blob/master/docs/configuration.md) for the complete schema reference.
 
 Then:
 
@@ -80,7 +80,7 @@ ldc logs gateway -f            # follow a service log
 ldc down                       # stop everything
 ```
 
-See [`docs/commands.md`](docs/commands.md) for all commands and options.
+See [Commands](https://github.com/sbugera/local-dev-composer/blob/master/docs/commands.md) for all commands and options.
 
 ## Requirements
 
