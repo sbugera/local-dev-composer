@@ -20,12 +20,42 @@ pip install local-dev-composer
 
 > If `ldc` is not recognised after install, see [Installation](https://github.com/sbugera/local-dev-composer/blob/master/docs/installation.md) for PATH setup options.
 
-```bash
-# Download the example config and adapt it to your project
-curl -O https://raw.githubusercontent.com/sbugera/local-dev-composer/master/composer.example.yml
-cp composer.example.yml composer.yml
-# edit composer.yml
+Create a `composer.yml` in your project root:
 
+```yaml
+workspace:
+  root: ./services
+
+services:
+  backend:
+    repo: https://github.com/your-org/backend.git
+    runtime: java
+    install:
+      command: mvn package -DskipTests -q
+    start:
+      command: java -jar target/backend.jar
+    health_check:
+      type: http
+      url: http://localhost:8080/actuator/health
+
+  frontend:
+    repo: https://github.com/your-org/frontend.git
+    runtime: node
+    depends_on: [backend]
+    install:
+      command: npm install
+    start:
+      command: npm start
+    health_check:
+      type: http
+      url: http://localhost:3000
+```
+
+See [`composer.example.yml`](composer.example.yml) for a full working example and [`docs/configuration.md`](docs/configuration.md) for the complete schema reference.
+
+Then:
+
+```bash
 ldc bootstrap                  # clone + install + start everything in one shot
 ```
 
@@ -49,6 +79,8 @@ ldc status                     # service table with PIDs and health
 ldc logs gateway -f            # follow a service log
 ldc down                       # stop everything
 ```
+
+See [`docs/commands.md`](docs/commands.md) for all commands and options.
 
 ## Requirements
 
