@@ -1,13 +1,14 @@
 # CLI Commands
 
 ```
-ldc [-f FILE] [--ldc-dir DIR] <command> [options]
+ldc [-f FILE] [--ldc-dir DIR] [--workers N] <command> [options]
 ```
 
 | flag | default | description |
 |------|---------|-------------|
 | `-f FILE` | `composer.yml` | path to config file |
 | `--ldc-dir DIR` | `.ldc` | state and log directory |
+| `--workers N` | from `composer.yml` | max parallel threads for clone / install / up; overrides `workspace.workers` |
 
 ---
 
@@ -19,6 +20,7 @@ Full onboarding sequence: clone → install → start. The single command a new 
 ldc bootstrap                        # everything
 ldc bootstrap --group gateway-dev    # minimum services for one feature area
 ldc bootstrap --skip-checks          # skip prerequisite checks
+ldc --workers 8 bootstrap            # clone, install, and start with 8 parallel workers
 ```
 
 If a service fails to clone, it is skipped in install and start.
@@ -32,11 +34,13 @@ Other services always continue.
 Clone or update service repositories.
 
 ```bash
-ldc clone                      # all services
+ldc clone                      # all services (4 parallel workers by default)
 ldc clone gateway user-service # specific services
 ldc clone --pull               # pull latest on already-cloned repos
+ldc --workers 1 clone          # sequential (one at a time)
 ```
 
+Clones always run in parallel regardless of `depends_on`. Use `--workers 1` to force sequential.
 Skips services with `runtime: external` or no `repo`.
 
 ---
@@ -60,29 +64,37 @@ Exits `0` if all pass, `1` if any fail.
 Run each service's `install` command in its own working directory with its own environment.
 
 ```bash
-ldc install                    # all services
+ldc install                    # all services (4 parallel workers by default)
 ldc install user-service       # one service
+ldc --workers 1 install        # sequential (one at a time)
 ```
 
+Installs always run in parallel regardless of `depends_on`. Use `--workers 1` to force sequential.
 Output streamed to `<log_dir>/<service>-install.log`.
 
 ---
 
 ## up
 
-Start services in topological dependency order (dependencies first).
+Start services in dependency order. Services with no dependency on each other start in parallel.
 
 ```bash
-ldc up                         # all services
+ldc up                         # all services (4 parallel workers by default)
 ldc up gateway user-service    # specific services + their transitive deps
 ldc up --group gateway-dev     # named group (see groups in config)
 ldc up --skip-checks           # skip prerequisite checks
+ldc --workers 1 up             # sequential, one service at a time
+ldc --workers 8 up             # up to 8 services starting concurrently
 ```
 
 Per service:
 1. Check prerequisites (skippable)
 2. Start process with isolated env
 3. Poll health check until healthy or timeout
+
+Parallelism follows dependency levels: all services in the same level (no dependency between
+them) start concurrently. ldc waits for all services in a level to finish before advancing to
+the next level. If a dependency fails, all services that depend on it are skipped.
 
 Shows a live Rich dashboard updating every 500ms.
 

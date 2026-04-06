@@ -65,6 +65,13 @@ def main() -> None:
         metavar="DIR",
         help="Directory for state and logs (default: .ldc)",
     )
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=None,
+        metavar="N",
+        help="Max parallel workers for clone/install/up (overrides composer.yml; default: 4)",
+    )
 
     sub = parser.add_subparsers(dest="command", required=True)
 
@@ -141,6 +148,9 @@ def main() -> None:
     container = Container(ldc_dir=Path(args.ldc_dir))
     config = container.config_reader.read(config_path)
 
+    # CLI --workers overrides composer.yml workers; composer.yml overrides built-in default
+    workers = args.workers if args.workers is not None else config.workers
+
     # ------------------------------------------------------------------
     if args.command == "bootstrap":
         container.bootstrap_cmd.execute(
@@ -149,6 +159,7 @@ def main() -> None:
             group_name=args.group,
             skip_checks=args.skip_checks,
             config_dir=config_dir,
+            workers=workers,
         )
 
     elif args.command == "clone":
@@ -156,6 +167,7 @@ def main() -> None:
             config,
             service_names=args.services or None,
             pull=args.pull,
+            workers=workers,
         )
 
     elif args.command == "check":
@@ -171,6 +183,7 @@ def main() -> None:
             config,
             service_names=args.services or None,
             config_dir=config_dir,
+            workers=workers,
         )
 
     elif args.command == "up":
@@ -180,6 +193,7 @@ def main() -> None:
             group_name=args.group,
             skip_checks=args.skip_checks,
             config_dir=config_dir,
+            workers=workers,
         )
 
     elif args.command == "down":
@@ -219,6 +233,7 @@ def main() -> None:
             group_name=args.group,
             skip_checks=args.skip_checks,
             config_dir=config_dir,
+            workers=workers,
         )
 
     elif args.command == "rebuild":
@@ -233,6 +248,7 @@ def main() -> None:
             group_name=args.group,
             skip_checks=args.skip_checks,
             config_dir=config_dir,
+            workers=workers,
         )
 
     elif args.command == "doctor":

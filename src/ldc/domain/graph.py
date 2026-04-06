@@ -140,6 +140,51 @@ class DependencyGraph:
 
         return list(reversed(order))
 
+    def startup_order_parallel(self, names: List[str]) -> List[List[str]]:
+        """
+        Return startup order as levels — services within the same level have no
+        dependencies on each other and can be started concurrently.
+
+        Level 0 contains services with no dependencies; level N contains services
+        whose dependencies all appear in levels 0..N-1.
+
+        Raises CircularDependencyError if a cycle is detected.
+        """
+        expanded: Set[str] = set()
+        for n in names:
+            expanded.add(n)
+            expanded.update(self.transitive_dependencies(n))
+
+        in_degree: Dict[str, int] = {n: 0 for n in expanded}
+        reverse_adj: Dict[str, List[str]] = defaultdict(list)
+
+        for node in expanded:
+            for dep in self._adj.get(node, []):
+                if dep in expanded:
+                    in_degree[node] += 1
+                    reverse_adj[dep].append(node)
+
+        levels: List[List[str]] = []
+        current_level = sorted(n for n in expanded if in_degree[n] == 0)
+
+        while current_level:
+            levels.append(current_level)
+            next_level: List[str] = []
+            for node in current_level:
+                for dependent in reverse_adj[node]:
+                    in_degree[dependent] -= 1
+                    if in_degree[dependent] == 0:
+                        next_level.append(dependent)
+            current_level = sorted(next_level)
+
+        if sum(len(lvl) for lvl in levels) != len(expanded):
+            cycle_nodes = expanded - {n for lvl in levels for n in lvl}
+            raise CircularDependencyError(
+                f"Circular dependency detected among: {sorted(cycle_nodes)}"
+            )
+
+        return levels
+
     def dependents_of(self, name: str) -> List[str]:
         """Return services that directly depend on *name*."""
         return [n for n, deps in self._adj.items() if name in deps]

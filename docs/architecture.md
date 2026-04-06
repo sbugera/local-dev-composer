@@ -30,10 +30,13 @@ src/ldc/
 
 ```python
 graph = DependencyGraph.from_services(config.services)
-order = graph.startup_order(["gateway"])   # topological sort
+order  = graph.startup_order(["gateway"])          # flat topological list
+levels = graph.startup_order_parallel(["gateway"]) # [[dep1, dep2], [gateway]]
 ```
 
-Kahn's algorithm. Raises `CircularDependencyError` immediately on cycles.
+Both methods use Kahn's algorithm. `startup_order_parallel` groups nodes into levels —
+services in the same level have no dependency on each other and can start concurrently.
+Raises `CircularDependencyError` immediately on cycles.
 
 ## Ports (interfaces)
 
@@ -61,11 +64,15 @@ Kahn's algorithm. Raises `CircularDependencyError` immediately on cycles.
 Writes `.ldc/state.json` after every state change. On next `ldc` invocation,
 loads existing PIDs and reconciles (marks dead processes STOPPED).
 
+When `up` runs with `--workers > 1`, all writes to the state store are serialised
+through a `threading.Lock` in `UpCommand._start_one()` to prevent concurrent file writes.
+
 ### RichReporter (`adapters/reporting/rich_reporter.py`)
 
 - Live dashboard: `rich.Live` + daemon thread polling at 500ms
 - Falls back to plain ASCII if `rich` is not installed
 - All IReporter methods are no-op safe
+- Thread-safe: `rich.Console` serialises output, safe to call from parallel workers
 
 ### CompositeHealthChecker (`adapters/health/composite_checker.py`)
 

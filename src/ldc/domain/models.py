@@ -129,6 +129,7 @@ class WorkspaceConfig:
     services: Dict[str, Service]
     groups: Dict[str, Group] = field(default_factory=dict)
     log_dir: str = "./logs"
+    workers: int = 4                            # max parallel threads (clone/install/up)
 
 
 # ---------------------------------------------------------------------------

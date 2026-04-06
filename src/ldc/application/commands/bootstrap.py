@@ -32,44 +32,39 @@ class BootstrapCommand:
         group_name: Optional[str] = None,
         skip_checks: bool = False,
         config_dir: str = ".",
+        workers: int = 1,
     ) -> None:
         targets = self._resolve_targets(config, service_names, group_name)
         total_start = time.monotonic()
 
-        # Clone — track failures
+        # Clone all targets in parallel — get back the set of failures
         self._reporter.info("Cloning repositories…")
-        failed: set = set()
-        for name in targets:
-            svc = config.services.get(name)
-            if svc and svc.repo:
-                try:
-                    self._clone.execute(config, service_names=[name])
-                except Exception as exc:
-                    self._reporter.error(f"[{name}] Clone failed: {exc} — skipping")
-                    failed.add(name)
+        failed: set = self._clone.execute(config, service_names=targets, workers=workers)
 
-        # Install — skip services that failed to clone
+        # Install all non-failed targets in parallel
         to_install = [n for n in targets if n not in failed]
         if to_install:
+            self._reporter.info("")
             self._reporter.info("Installing services…")
-            for name in to_install:
-                try:
-                    self._install.execute(config, service_names=[name], config_dir=config_dir)
-                except Exception as exc:
-                    self._reporter.error(f"[{name}] Install failed: {exc} — skipping start")
-                    failed.add(name)
+            install_failed = self._install.execute(
+                config, service_names=to_install, config_dir=config_dir, workers=workers
+            )
+            failed |= install_failed
 
         # Start — skip services that failed to clone or install
         to_start = [n for n in targets if n not in failed]
         if to_start:
+            self._reporter.info("")
             self._reporter.info("Starting services…")
             self._up.execute(
                 config,
                 service_names=to_start,
                 skip_checks=skip_checks,
                 config_dir=config_dir,
+                workers=workers,
             )
 
+        self._reporter.info("")
         self._reporter.info(f"Bootstrap complete in {time.monotonic() - total_start:.1f}s")
 
     @staticmethod

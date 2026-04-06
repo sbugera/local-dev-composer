@@ -6,6 +6,7 @@
 workspace:
   root: ./repos             # All repos are cloned here unless 'dir' is set per-service
   log_dir: ./logs           # Per-service log files land here
+  workers: 4                # Max parallel threads for clone / install / up (default: 4)
 
 # ============================================================
 # Services
