@@ -87,6 +87,11 @@ class UpCommand:
 
         self._reporter.start_live_dashboard(states)
 
+        # When running in parallel, suppress per-service text log calls — the live
+        # dashboard table is the primary UI and shows state transitions in real time.
+        # In sequential mode (workers=1) text messages are kept for plain output.
+        silent = workers > 1
+
         # Lock for state-store writes (shared JSON file) when running in parallel
         lock = threading.Lock()
 
@@ -95,7 +100,7 @@ class UpCommand:
                 with ThreadPoolExecutor(max_workers=workers) as pool:
                     list(pool.map(
                         lambda name: self._start_one(  # noqa: B023
-                            name, config, states, skip_checks, config_dir, lock
+                            name, config, states, skip_checks, config_dir, lock, silent
                         ),
                         level,
                     ))
@@ -112,14 +117,23 @@ class UpCommand:
         skip_checks: bool,
         config_dir: str,
         lock: threading.Lock,
+        silent: bool = False,
     ) -> None:
-        """Start a single service and update its state."""
+        """Start a single service and update its state.
+
+        When *silent* is True, informational log calls are suppressed — the live
+        dashboard table is the primary UI and shows state transitions in real time.
+        """
+        def _log(method: str, msg: str) -> None:
+            if not silent:
+                getattr(self._reporter, method)(msg)
+
         svc = config.services[name]
         state = states[name]
 
         # Skip already-healthy services
         if state.status == ServiceStatus.HEALTHY and self._runner.is_alive(state):
-            self._reporter.info(f"[{name}] Already running (pid {state.pid}) — skipping")
+            _log("info", f"[{name}] Already running (pid {state.pid}) — skipping")
             return
 
         # Skip if any direct dependency failed
@@ -128,7 +142,6 @@ class UpCommand:
             if dep_state and dep_state.status == ServiceStatus.FAILED:
                 state.status = ServiceStatus.FAILED
                 state.last_error = f"Dependency '{dep}' failed"
-                self._reporter.error(f"[{name}] Skipping — dependency '{dep}' failed")
                 with lock:
                     self._runner.update_state(state)
                 return
@@ -138,7 +151,6 @@ class UpCommand:
             report = self._checker.check(name, svc.requires)
             if not report.passed:
                 failures = "; ".join(f.name for f in report.failures)
-                self._reporter.error(f"[{name}] Prerequisite failures: {failures}")
                 state.status = ServiceStatus.FAILED
                 state.last_error = f"Prerequisite failures: {failures}"
                 with lock:
@@ -151,10 +163,6 @@ class UpCommand:
                 state.status = ServiceStatus.STARTING
                 healthy = self._health.wait_healthy(svc.health_check)
                 state.status = ServiceStatus.HEALTHY if healthy else ServiceStatus.UNHEALTHY
-                if not healthy:
-                    self._reporter.warning(
-                        f"[{name}] External service unreachable — continuing anyway"
-                    )
             else:
                 state.status = ServiceStatus.SKIPPED
             with lock:
@@ -162,7 +170,6 @@ class UpCommand:
             return
 
         if not svc.start:
-            self._reporter.warning(f"[{name}] No start config — skipping")
             state.status = ServiceStatus.SKIPPED
             with lock:
                 self._runner.update_state(state)
@@ -175,7 +182,7 @@ class UpCommand:
         log_file = str(Path(config.log_dir) / f"{name}.log")
         env = resolve_env(svc.env, svc.env_files, config_dir)
         state.status = ServiceStatus.STARTING
-        self._reporter.info(f"[{name}] Starting…")
+        _log("info", f"[{name}] Starting…")
         t = time.monotonic()
 
         try:
@@ -186,7 +193,7 @@ class UpCommand:
         except Exception as exc:
             state.status = ServiceStatus.FAILED
             state.last_error = str(exc)
-            self._reporter.error(f"[{name}] Failed to start: {exc} ({time.monotonic()-t:.1f}s)")
+            _log("error", f"[{name}] Failed to start: {exc} ({time.monotonic()-t:.1f}s)")
             with lock:
                 self._runner.update_state(state)
             return
@@ -202,24 +209,23 @@ class UpCommand:
             if healthy:
                 state.status = ServiceStatus.HEALTHY
                 state.last_health_check_at = datetime.now(timezone.utc).isoformat()
-                self._reporter.success(f"[{name}] Healthy (pid {state.pid}) ({elapsed})")
+                _log("success", f"[{name}] Healthy (pid {state.pid}) ({elapsed})")
             else:
                 state.status = ServiceStatus.FAILED
                 state.last_error = "Health check timed out"
-                self._reporter.error(f"[{name}] Health check failed ({elapsed}) — check log: {log_file}")
+                _log("error", f"[{name}] Health check failed ({elapsed}) — check log: {log_file}")
                 if self._runner.is_alive(state):
                     self._runner.stop(state)
-                    self._reporter.info(f"[{name}] Process killed after health check failure")
         else:
             time.sleep(1)
             elapsed = f"{time.monotonic()-t:.1f}s"
             if self._runner.is_alive(state):
                 state.status = ServiceStatus.HEALTHY
-                self._reporter.success(f"[{name}] Started (pid {state.pid}) ({elapsed})")
+                _log("success", f"[{name}] Started (pid {state.pid}) ({elapsed})")
             else:
                 state.status = ServiceStatus.FAILED
                 state.last_error = "Process exited immediately"
-                self._reporter.error(f"[{name}] Process exited ({elapsed}) — check log: {log_file}")
+                _log("error", f"[{name}] Process exited ({elapsed}) — check log: {log_file}")
 
         with lock:
             self._runner.update_state(state)
