@@ -1,6 +1,6 @@
 # local-dev-composer (ldc)
 
-Orchestrate local microservice environments on **Windows 11** without Docker, Podman, or WSL.
+Orchestrate local microservice environments on Windows without Docker, Podman, or WSL.
 
 - Start a full service graph with one command
 - Per-service environment isolation (same variable, different values per service)
@@ -10,16 +10,28 @@ Orchestrate local microservice environments on **Windows 11** without Docker, Po
 - Groups — declare the minimum set of services per development scenario
 - Survives restarts — reconciles live PIDs from `.ldc/state.json`
 
-## Quick start
+## Install
 
 ```bash
-git clone https://github.com/sbugera/local-dev-composer.git
-cd local-dev-composer
-pip install -e .
+pip install local-dev-composer
+```
 
+## Quick start
+
+> If `ldc` is not recognised after install, see [Installation](https://github.com/sbugera/local-dev-composer/blob/master/docs/installation.md) for PATH setup options.
+
+```bash
+# Download the example config and adapt it to your project
+curl -O https://raw.githubusercontent.com/sbugera/local-dev-composer/master/composer.example.yml
 cp composer.example.yml composer.yml
-# edit composer.yml for your project
+# edit composer.yml
 
+ldc bootstrap                  # clone + install + start everything in one shot
+```
+
+Or step by step:
+
+```bash
 ldc doctor                     # check everything, get a numbered fix list
 ldc clone                      # clone all repos
 ldc check --fix                # verify and fix prerequisites
@@ -31,29 +43,35 @@ ldc up --group gateway-dev     # start minimum services for your task
 
 ```bash
 ldc up --group gateway-dev     # start what you need
+ldc rebuild backend            # stop + reinstall + start after code changes
+ldc restart gateway            # stop + start (no reinstall)
 ldc status                     # service table with PIDs and health
 ldc logs gateway -f            # follow a service log
 ldc down                       # stop everything
 ```
 
-## Documentation
-
-| topic | description |
-|-------|-------------|
-| [Installation](docs/installation.md) | Setup, direct-script mode |
-| [Configuration](docs/configuration.md) | Full `composer.yml` schema reference |
-| [Commands](docs/commands.md) | All CLI commands with options |
-| [Groups](docs/groups.md) | Named service sets, smart selection |
-| [Environment](docs/environment.md) | Per-service env isolation, `.env` files |
-| [Prerequisites](docs/prerequisites.md) | Runtime/command/folder/port checks |
-| [Health Checks](docs/health-checks.md) | HTTP, TCP, command, process types |
-| [State & Logs](docs/state-and-logs.md) | `.ldc/state.json`, log files, clearing state |
-| [Architecture](docs/architecture.md) | Hexagonal design, layers, extending ldc |
-| [Testing](docs/testing.md) | Running tests, writing new ones |
-
 ## Requirements
 
 - Python 3.9+
 - Git for Windows
-- Windows 11
+- Windows
 - No Docker, no WSL
+
+## Documentation
+
+Full documentation is available on [GitHub](https://github.com/sbugera/local-dev-composer):
+
+- [Installation](https://github.com/sbugera/local-dev-composer/blob/master/docs/installation.md)
+- [Configuration](https://github.com/sbugera/local-dev-composer/blob/master/docs/configuration.md)
+- [Commands](https://github.com/sbugera/local-dev-composer/blob/master/docs/commands.md)
+- [Groups](https://github.com/sbugera/local-dev-composer/blob/master/docs/groups.md)
+- [Environment variables](https://github.com/sbugera/local-dev-composer/blob/master/docs/environment.md)
+- [Prerequisites](https://github.com/sbugera/local-dev-composer/blob/master/docs/prerequisites.md)
+- [Health checks](https://github.com/sbugera/local-dev-composer/blob/master/docs/health-checks.md)
+- [State & logs](https://github.com/sbugera/local-dev-composer/blob/master/docs/state-and-logs.md)
+- [Architecture](https://github.com/sbugera/local-dev-composer/blob/master/docs/architecture.md)
+- [Testing](https://github.com/sbugera/local-dev-composer/blob/master/docs/testing.md)
+
+## Source & contributing
+
+[https://github.com/sbugera/local-dev-composer](https://github.com/sbugera/local-dev-composer)
