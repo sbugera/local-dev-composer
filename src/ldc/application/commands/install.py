@@ -2,9 +2,9 @@
 from __future__ import annotations
 
 import time
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Set, Tuple
 
 from ldc.application.env_resolver import resolve_env
 from ldc.domain.models import Runtime, WorkspaceConfig
@@ -24,35 +24,53 @@ class InstallCommand:
         service_names: Optional[List[str]] = None,
         config_dir: str = ".",
         workers: int = 1,
-    ) -> None:
+    ) -> Set[str]:
+        """
+        Run install commands for the given services.
+        Returns the set of service names that failed.
+        """
         targets = list(service_names or config.services.keys())
+        failed: Set[str] = set()
 
-        def _install_one(name: str) -> None:
+        def _install_one(name: str) -> Tuple[str, bool, List[Tuple[str, str]]]:
+            """Run install for one service; return (name, ok, messages)."""
+            msgs: List[Tuple[str, str]] = []
+            ok = True
             svc = config.services.get(name)
             if svc is None:
-                self._reporter.warning(f"Unknown service '{name}' — skipping install")
-                return
+                msgs.append(("warning", f"Unknown service '{name}' — skipping install"))
+                return name, ok, msgs
             if not svc.install:
-                self._reporter.info(f"[{name}] No install command — skipping")
-                return
+                msgs.append(("info", f"[{name}] No install command — skipping"))
+                return name, ok, msgs
             if svc.runtime == Runtime.EXTERNAL:
-                self._reporter.info(f"[{name}] External service — skipping install")
-                return
+                msgs.append(("info", f"[{name}] External service — skipping install"))
+                return name, ok, msgs
 
             working_dir = self._resolve_dir(config.root, svc.name, svc.dir, svc.install.working_dir)
             log_file = str(Path(config.log_dir) / f"{name}-install.log")
             env = resolve_env(svc.env, svc.env_files, config_dir)
 
-            self._reporter.info(f"[{name}] Installing: {svc.install.command}")
+            msgs.append(("info", f"[{name}] Installing: {svc.install.command}"))
             t = time.monotonic()
             try:
                 self._installer.install(name, svc.install, working_dir, env, log_file)
-                self._reporter.success(f"[{name}] Install complete ({time.monotonic()-t:.1f}s)")
+                msgs.append(("success", f"[{name}] Install complete ({time.monotonic()-t:.1f}s)"))
             except Exception as exc:
-                self._reporter.error(f"[{name}] Install failed: {exc} ({time.monotonic()-t:.1f}s)")
+                msgs.append(("error", f"[{name}] Install failed: {exc} ({time.monotonic()-t:.1f}s)"))
+                ok = False
+            return name, ok, msgs
 
         with ThreadPoolExecutor(max_workers=workers) as pool:
-            list(pool.map(_install_one, targets))
+            futures = {pool.submit(_install_one, name): name for name in targets}
+            for future in as_completed(futures):
+                name, ok, msgs = future.result()
+                if not ok:
+                    failed.add(name)
+                for method, msg in msgs:
+                    getattr(self._reporter, method)(msg)
+
+        return failed
 
     @staticmethod
     def _resolve_dir(
