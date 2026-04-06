@@ -12,6 +12,7 @@ See [`composer.example.yml`](../composer.example.yml) for a full working example
 workspace:
   root: ./services      # where repos are cloned
   log_dir: ./logs       # per-service log files
+  workers: 4            # max parallel threads for clone / install / up (default: 4)
 
 services:
   <name>: ...           # service definitions

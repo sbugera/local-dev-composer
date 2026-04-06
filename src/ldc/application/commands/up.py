@@ -10,7 +10,9 @@ Steps per service:
 """
 from __future__ import annotations
 
+import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional
@@ -53,15 +55,18 @@ class UpCommand:
         skip_install: bool = True,
         states: Optional[Dict[str, ServiceState]] = None,
         config_dir: str = ".",
+        workers: int = 1,
     ) -> Dict[str, ServiceState]:
         """
         Start services.  Returns the final states dict.
         If *states* is provided it is used as the shared live-dashboard dict.
+        When *workers* > 1, independent services (same dependency level) start in parallel.
         """
         targets = self._resolve_targets(config, service_names, group_name)
 
         graph = DependencyGraph.from_services(config.services)
-        order = graph.startup_order(targets)
+        levels = graph.startup_order_parallel(targets)
+        order = [name for level in levels for name in level]
 
         if states is None:
             states = {}
@@ -82,108 +87,142 @@ class UpCommand:
 
         self._reporter.start_live_dashboard(states)
 
+        # Lock for state-store writes (shared JSON file) when running in parallel
+        lock = threading.Lock()
+
         try:
-            for name in order:
-                svc = config.services[name]
-                state = states[name]
-
-                # Skip already-healthy services
-                if state.status == ServiceStatus.HEALTHY and self._runner.is_alive(state):
-                    self._reporter.info(f"[{name}] Already running (pid {state.pid}) — skipping")
-                    continue
-
-                # --- Prerequisite check ---
-                if not skip_checks and svc.requires:
-                    report = self._checker.check(name, svc.requires)
-                    if not report.passed:
-                        failures = "; ".join(f.name for f in report.failures)
-                        self._reporter.error(
-                            f"[{name}] Prerequisite failures: {failures}"
-                        )
-                        state.status = ServiceStatus.FAILED
-                        state.last_error = f"Prerequisite failures: {failures}"
-                        self._runner.update_state(state)
-                        continue
-
-                # --- External services with no start command ---
-                if svc.runtime == Runtime.EXTERNAL and not svc.start:
-                    if svc.health_check:
-                        state.status = ServiceStatus.STARTING
-                        healthy = self._health.wait_healthy(svc.health_check)
-                        state.status = ServiceStatus.HEALTHY if healthy else ServiceStatus.UNHEALTHY
-                        if not healthy:
-                            self._reporter.warning(
-                                f"[{name}] External service unreachable — continuing anyway"
-                            )
-                    else:
-                        state.status = ServiceStatus.SKIPPED
-                    self._runner.update_state(state)
-                    continue
-
-                if not svc.start:
-                    self._reporter.warning(f"[{name}] No start config — skipping")
-                    state.status = ServiceStatus.SKIPPED
-                    self._runner.update_state(state)
-                    continue
-
-                # --- Start the process ---
-                working_dir = self._resolve_dir(
-                    config.root, svc.name, svc.dir, svc.start.working_dir
-                )
-                log_file = str(Path(config.log_dir) / f"{name}.log")
-                env = resolve_env(svc.env, svc.env_files, config_dir)
-                state.status = ServiceStatus.STARTING
-                self._reporter.info(f"[{name}] Starting…")
-                t = time.monotonic()
-
-                try:
-                    new_state = self._runner.start(svc, working_dir, env, log_file)
-                    state.pid = new_state.pid
-                    state.started_at = new_state.started_at
-                    state.log_file = new_state.log_file
-                except Exception as exc:
-                    state.status = ServiceStatus.FAILED
-                    state.last_error = str(exc)
-                    self._reporter.error(f"[{name}] Failed to start: {exc} ({time.monotonic()-t:.1f}s)")
-                    self._runner.update_state(state)
-                    continue
-
-                # --- Health check ---
-                if svc.health_check:
-                    if svc.health_check.type == HealthCheckType.PROCESS:
-                        healthy = self._wait_process_alive(state, svc.health_check.timeout_seconds)
-                    else:
-                        healthy = self._health.wait_healthy(svc.health_check)
-
-                    elapsed = f"{time.monotonic()-t:.1f}s"
-                    if healthy:
-                        state.status = ServiceStatus.HEALTHY
-                        state.last_health_check_at = datetime.now(timezone.utc).isoformat()
-                        self._reporter.success(f"[{name}] Healthy (pid {state.pid}) ({elapsed})")
-                    else:
-                        state.status = ServiceStatus.FAILED
-                        state.last_error = "Health check timed out"
-                        self._reporter.error(f"[{name}] Health check failed ({elapsed}) — check log: {log_file}")
-                        if self._runner.is_alive(state):
-                            self._runner.stop(state)
-                            self._reporter.info(f"[{name}] Process killed after health check failure")
-                else:
-                    time.sleep(1)
-                    elapsed = f"{time.monotonic()-t:.1f}s"
-                    if self._runner.is_alive(state):
-                        state.status = ServiceStatus.HEALTHY
-                        self._reporter.success(f"[{name}] Started (pid {state.pid}) ({elapsed})")
-                    else:
-                        state.status = ServiceStatus.FAILED
-                        state.last_error = "Process exited immediately"
-                        self._reporter.error(f"[{name}] Process exited ({elapsed}) — check log: {log_file}")
-
-                self._runner.update_state(state)
-
+            for level in levels:
+                with ThreadPoolExecutor(max_workers=workers) as pool:
+                    list(pool.map(
+                        lambda name: self._start_one(  # noqa: B023
+                            name, config, states, skip_checks, config_dir, lock
+                        ),
+                        level,
+                    ))
         finally:
             self._reporter.stop_live_dashboard()
 
         return states
+
+    def _start_one(
+        self,
+        name: str,
+        config: WorkspaceConfig,
+        states: Dict[str, ServiceState],
+        skip_checks: bool,
+        config_dir: str,
+        lock: threading.Lock,
+    ) -> None:
+        """Start a single service and update its state."""
+        svc = config.services[name]
+        state = states[name]
+
+        # Skip already-healthy services
+        if state.status == ServiceStatus.HEALTHY and self._runner.is_alive(state):
+            self._reporter.info(f"[{name}] Already running (pid {state.pid}) — skipping")
+            return
+
+        # Skip if any direct dependency failed
+        for dep in svc.depends_on:
+            dep_state = states.get(dep)
+            if dep_state and dep_state.status == ServiceStatus.FAILED:
+                state.status = ServiceStatus.FAILED
+                state.last_error = f"Dependency '{dep}' failed"
+                self._reporter.error(f"[{name}] Skipping — dependency '{dep}' failed")
+                with lock:
+                    self._runner.update_state(state)
+                return
+
+        # --- Prerequisite check ---
+        if not skip_checks and svc.requires:
+            report = self._checker.check(name, svc.requires)
+            if not report.passed:
+                failures = "; ".join(f.name for f in report.failures)
+                self._reporter.error(f"[{name}] Prerequisite failures: {failures}")
+                state.status = ServiceStatus.FAILED
+                state.last_error = f"Prerequisite failures: {failures}"
+                with lock:
+                    self._runner.update_state(state)
+                return
+
+        # --- External services with no start command ---
+        if svc.runtime == Runtime.EXTERNAL and not svc.start:
+            if svc.health_check:
+                state.status = ServiceStatus.STARTING
+                healthy = self._health.wait_healthy(svc.health_check)
+                state.status = ServiceStatus.HEALTHY if healthy else ServiceStatus.UNHEALTHY
+                if not healthy:
+                    self._reporter.warning(
+                        f"[{name}] External service unreachable — continuing anyway"
+                    )
+            else:
+                state.status = ServiceStatus.SKIPPED
+            with lock:
+                self._runner.update_state(state)
+            return
+
+        if not svc.start:
+            self._reporter.warning(f"[{name}] No start config — skipping")
+            state.status = ServiceStatus.SKIPPED
+            with lock:
+                self._runner.update_state(state)
+            return
+
+        # --- Start the process ---
+        working_dir = self._resolve_dir(
+            config.root, svc.name, svc.dir, svc.start.working_dir
+        )
+        log_file = str(Path(config.log_dir) / f"{name}.log")
+        env = resolve_env(svc.env, svc.env_files, config_dir)
+        state.status = ServiceStatus.STARTING
+        self._reporter.info(f"[{name}] Starting…")
+        t = time.monotonic()
+
+        try:
+            new_state = self._runner.start(svc, working_dir, env, log_file)
+            state.pid = new_state.pid
+            state.started_at = new_state.started_at
+            state.log_file = new_state.log_file
+        except Exception as exc:
+            state.status = ServiceStatus.FAILED
+            state.last_error = str(exc)
+            self._reporter.error(f"[{name}] Failed to start: {exc} ({time.monotonic()-t:.1f}s)")
+            with lock:
+                self._runner.update_state(state)
+            return
+
+        # --- Health check ---
+        if svc.health_check:
+            if svc.health_check.type == HealthCheckType.PROCESS:
+                healthy = self._wait_process_alive(state, svc.health_check.timeout_seconds)
+            else:
+                healthy = self._health.wait_healthy(svc.health_check)
+
+            elapsed = f"{time.monotonic()-t:.1f}s"
+            if healthy:
+                state.status = ServiceStatus.HEALTHY
+                state.last_health_check_at = datetime.now(timezone.utc).isoformat()
+                self._reporter.success(f"[{name}] Healthy (pid {state.pid}) ({elapsed})")
+            else:
+                state.status = ServiceStatus.FAILED
+                state.last_error = "Health check timed out"
+                self._reporter.error(f"[{name}] Health check failed ({elapsed}) — check log: {log_file}")
+                if self._runner.is_alive(state):
+                    self._runner.stop(state)
+                    self._reporter.info(f"[{name}] Process killed after health check failure")
+        else:
+            time.sleep(1)
+            elapsed = f"{time.monotonic()-t:.1f}s"
+            if self._runner.is_alive(state):
+                state.status = ServiceStatus.HEALTHY
+                self._reporter.success(f"[{name}] Started (pid {state.pid}) ({elapsed})")
+            else:
+                state.status = ServiceStatus.FAILED
+                state.last_error = "Process exited immediately"
+                self._reporter.error(f"[{name}] Process exited ({elapsed}) — check log: {log_file}")
+
+        with lock:
+            self._runner.update_state(state)
 
     # ------------------------------------------------------------------
     # Helpers

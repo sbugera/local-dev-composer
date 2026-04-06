@@ -29,6 +29,7 @@ class RestartCommand:
         group_name: Optional[str] = None,
         skip_checks: bool = False,
         config_dir: str = ".",
+        workers: int = 1,
     ) -> None:
         targets = self._resolve_targets(config, service_names, group_name)
         total_start = time.monotonic()
@@ -42,6 +43,7 @@ class RestartCommand:
             service_names=targets,
             skip_checks=skip_checks,
             config_dir=config_dir,
+            workers=workers,
         )
 
         self._reporter.info(f"Restart complete in {time.monotonic() - total_start:.1f}s")

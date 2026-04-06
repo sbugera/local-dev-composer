@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import List, Optional
 
@@ -25,26 +26,26 @@ class CloneCommand:
         config: WorkspaceConfig,
         service_names: Optional[List[str]] = None,
         pull: bool = False,
+        workers: int = 1,
     ) -> None:
         """
         Clone or pull the given services (all services if *service_names* is None).
 
         Services with runtime=EXTERNAL or no repo are silently skipped.
         When *pull* is True, updates an already-cloned repo instead of cloning.
+        When *workers* > 1, clones run in parallel.
         """
-        targets = list(
-            (service_names or config.services.keys())
-        )
+        targets = list(service_names or config.services.keys())
 
-        for name in targets:
+        def _clone_one(name: str) -> None:
             svc = config.services.get(name)
             if svc is None:
                 self._reporter.warning(f"Unknown service '{name}' — skipping clone")
-                continue
+                return
 
             if svc.runtime == Runtime.EXTERNAL or not svc.repo:
                 self._reporter.info(f"[{name}] No repo configured — skipping")
-                continue
+                return
 
             dest = self._resolve_dir(config.root, svc.name, svc.dir)
 
@@ -69,6 +70,9 @@ class CloneCommand:
                     self._reporter.success(f"[{name}] Cloned successfully ({time.monotonic()-t:.1f}s)")
                 except Exception as exc:
                     self._reporter.error(f"[{name}] Clone failed: {exc} ({time.monotonic()-t:.1f}s)")
+
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            list(pool.map(_clone_one, targets))
 
     @staticmethod
     def _resolve_dir(workspace_root: str, name: str, override: Optional[str]) -> Path:

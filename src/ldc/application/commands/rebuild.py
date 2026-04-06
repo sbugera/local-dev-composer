@@ -33,6 +33,7 @@ class RebuildCommand:
         group_name: Optional[str] = None,
         skip_checks: bool = False,
         config_dir: str = ".",
+        workers: int = 1,
     ) -> None:
         targets = self._resolve_targets(config, service_names, group_name)
         total_start = time.monotonic()
@@ -49,7 +50,7 @@ class RebuildCommand:
         self._reporter.info("Installing services…")
         for name in start_order:
             try:
-                self._install.execute(config, service_names=[name], config_dir=config_dir)
+                self._install.execute(config, service_names=[name], config_dir=config_dir, workers=workers)
             except Exception as exc:
                 self._reporter.error(f"[{name}] Install failed: {exc} — skipping start")
                 failed_install.add(name)
@@ -63,6 +64,7 @@ class RebuildCommand:
                 service_names=to_start,
                 skip_checks=skip_checks,
                 config_dir=config_dir,
+                workers=workers,
             )
 
         self._reporter.info(f"Rebuild complete in {time.monotonic() - total_start:.1f}s")

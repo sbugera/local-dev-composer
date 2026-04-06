@@ -32,6 +32,7 @@ class BootstrapCommand:
         group_name: Optional[str] = None,
         skip_checks: bool = False,
         config_dir: str = ".",
+        workers: int = 1,
     ) -> None:
         targets = self._resolve_targets(config, service_names, group_name)
         total_start = time.monotonic()
@@ -43,7 +44,7 @@ class BootstrapCommand:
             svc = config.services.get(name)
             if svc and svc.repo:
                 try:
-                    self._clone.execute(config, service_names=[name])
+                    self._clone.execute(config, service_names=[name], workers=workers)
                 except Exception as exc:
                     self._reporter.error(f"[{name}] Clone failed: {exc} — skipping")
                     failed.add(name)
@@ -54,7 +55,7 @@ class BootstrapCommand:
             self._reporter.info("Installing services…")
             for name in to_install:
                 try:
-                    self._install.execute(config, service_names=[name], config_dir=config_dir)
+                    self._install.execute(config, service_names=[name], config_dir=config_dir, workers=workers)
                 except Exception as exc:
                     self._reporter.error(f"[{name}] Install failed: {exc} — skipping start")
                     failed.add(name)
@@ -68,6 +69,7 @@ class BootstrapCommand:
                 service_names=to_start,
                 skip_checks=skip_checks,
                 config_dir=config_dir,
+                workers=workers,
             )
 
         self._reporter.info(f"Bootstrap complete in {time.monotonic() - total_start:.1f}s")

@@ -41,6 +41,7 @@ class YamlConfigReader(IConfigReader):
         workspace_raw = raw.get("workspace", {})
         root = workspace_raw.get("root", "./services")
         log_dir = workspace_raw.get("log_dir", "./logs")
+        workers = int(workspace_raw.get("workers", 4))
 
         services_raw: Dict[str, Any] = raw.get("services", {})
         groups_raw: Dict[str, Any] = raw.get("groups", {})
@@ -58,6 +59,7 @@ class YamlConfigReader(IConfigReader):
         return WorkspaceConfig(
             root=root,
             log_dir=log_dir,
+            workers=workers,
             services=services,
             groups=groups,
         )
