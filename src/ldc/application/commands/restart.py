@@ -37,6 +37,7 @@ class RestartCommand:
         self._reporter.info("Stopping services…")
         self._down.execute(config, service_names=targets)
 
+        self._reporter.info("")
         self._reporter.info("Starting services…")
         self._up.execute(
             config,
@@ -46,6 +47,7 @@ class RestartCommand:
             workers=workers,
         )
 
+        self._reporter.info("")
         self._reporter.info(f"Restart complete in {time.monotonic() - total_start:.1f}s")
 
     @staticmethod

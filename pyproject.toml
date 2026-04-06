@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "local-dev-composer"
-version = "0.1.3"
+version = "0.2.0"
 description = "Orchestrate local microservice environments on Windows without Docker or WSL"
 readme = "README.md"
 requires-python = ">=3.9"

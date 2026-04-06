@@ -44,6 +44,7 @@ class BootstrapCommand:
         # Install all non-failed targets in parallel
         to_install = [n for n in targets if n not in failed]
         if to_install:
+            self._reporter.info("")
             self._reporter.info("Installing services…")
             install_failed = self._install.execute(
                 config, service_names=to_install, config_dir=config_dir, workers=workers
@@ -53,6 +54,7 @@ class BootstrapCommand:
         # Start — skip services that failed to clone or install
         to_start = [n for n in targets if n not in failed]
         if to_start:
+            self._reporter.info("")
             self._reporter.info("Starting services…")
             self._up.execute(
                 config,
@@ -62,6 +64,7 @@ class BootstrapCommand:
                 workers=workers,
             )
 
+        self._reporter.info("")
         self._reporter.info(f"Bootstrap complete in {time.monotonic() - total_start:.1f}s")
 
     @staticmethod

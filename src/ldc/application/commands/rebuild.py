@@ -42,6 +42,7 @@ class RebuildCommand:
         self._down.execute(config, service_names=targets)
 
         # Install all targets in parallel; track which ones failed
+        self._reporter.info("")
         self._reporter.info("Installing services…")
         failed_install = self._install.execute(
             config, service_names=targets, config_dir=config_dir, workers=workers
@@ -50,6 +51,7 @@ class RebuildCommand:
         # Start only services whose install succeeded
         to_start = [n for n in targets if n not in failed_install]
         if to_start:
+            self._reporter.info("")
             self._reporter.info("Starting services…")
             self._up.execute(
                 config,
@@ -59,6 +61,7 @@ class RebuildCommand:
                 workers=workers,
             )
 
+        self._reporter.info("")
         self._reporter.info(f"Rebuild complete in {time.monotonic() - total_start:.1f}s")
 
     @staticmethod
