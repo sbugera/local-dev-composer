@@ -9,11 +9,37 @@ description = "Orchestrate local microservice environments on Windows without Do
 readme = "README.md"
 requires-python = ">=3.9"
 license = {text = "MIT"}
+authors = [
+    {name = "Sergii Bugera"},
+]
+keywords = [
+    "microservices", "local-development", "developer-tools",
+    "process-manager", "windows", "devtools",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: Microsoft :: Windows",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Build Tools",
+    "Topic :: System :: Systems Administration",
+]
 dependencies = [
     "rich>=13.0.0",
     "pyyaml>=6.0",
     "psutil>=5.9.0",
 ]
+
+[project.urls]
+Homepage = "https://github.com/sbugera/local-dev-composer"
+Repository = "https://github.com/sbugera/local-dev-composer"
+Issues = "https://github.com/sbugera/local-dev-composer/issues"
 
 [project.optional-dependencies]
 dev = [
