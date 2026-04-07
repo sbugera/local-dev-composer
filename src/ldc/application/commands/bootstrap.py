@@ -2,12 +2,12 @@
 from __future__ import annotations
 
 import time
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from ldc.application.commands.clone import CloneCommand
 from ldc.application.commands.install import InstallCommand
 from ldc.application.commands.up import UpCommand
-from ldc.domain.models import WorkspaceConfig
+from ldc.domain.models import ServiceState, WorkspaceConfig
 from ldc.ports.reporter import IReporter
 
 
@@ -33,6 +33,7 @@ class BootstrapCommand:
         skip_checks: bool = False,
         config_dir: str = ".",
         workers: int = 1,
+        states: Optional[Dict[str, ServiceState]] = None,
     ) -> None:
         targets = self._resolve_targets(config, service_names, group_name)
         total_start = time.monotonic()
@@ -62,6 +63,7 @@ class BootstrapCommand:
                 skip_checks=skip_checks,
                 config_dir=config_dir,
                 workers=workers,
+                states=states,
             )
 
         self._reporter.info("")

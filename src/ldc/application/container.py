@@ -7,6 +7,7 @@ pre-built command objects to the CLI layer.
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Optional
 
 from ldc.adapters.config.yaml_reader import YamlConfigReader
 from ldc.adapters.git.subprocess_client import SubprocessGitClient
@@ -31,6 +32,7 @@ from ldc.application.commands.restart import RestartCommand
 from ldc.application.commands.status import StatusCommand
 from ldc.application.commands.up import UpCommand
 from ldc.application.installer_service import SubprocessInstaller
+from ldc.ports.reporter import IReporter
 
 
 class Container:
@@ -39,9 +41,9 @@ class Container:
     within the lifetime of one command execution.
     """
 
-    def __init__(self, ldc_dir: Path = Path(".ldc")) -> None:
+    def __init__(self, ldc_dir: Path = Path(".ldc"), reporter: Optional[IReporter] = None) -> None:
         # Core adapters
-        self.reporter = RichReporter()
+        self.reporter: IReporter = reporter if reporter is not None else RichReporter()
         self.config_reader = YamlConfigReader()
         self.git = SubprocessGitClient()
         self.prereq_checker = SystemPrerequisiteChecker()

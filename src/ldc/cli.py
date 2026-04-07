@@ -34,6 +34,7 @@ Usage examples
 import argparse
 import sys
 from pathlib import Path
+from typing import Dict
 
 from ldc.application.container import Container
 
@@ -44,6 +45,14 @@ def _find_config(path: str) -> Path:
         print(f"Error: config file not found: {p}", file=sys.stderr)
         sys.exit(1)
     return p
+
+
+def _textual_available() -> bool:
+    try:
+        import textual  # noqa: F401
+        return True
+    except ImportError:
+        return False
 
 
 def main() -> None:
@@ -71,6 +80,12 @@ def main() -> None:
         default=None,
         metavar="N",
         help="Max parallel workers for clone/install/up (overrides composer.yml; default: 4)",
+    )
+    parser.add_argument(
+        "--no-interactive",
+        action="store_true",
+        default=False,
+        help="Disable interactive TUI dashboard; use plain Rich output",
     )
 
     sub = parser.add_subparsers(dest="command", required=True)
@@ -145,6 +160,65 @@ def main() -> None:
 
     config_path = _find_config(args.file)
     config_dir = str(config_path.parent)
+
+    # ------------------------------------------------------------------
+    # Interactive TUI mode — auto-detected when stdout is a TTY and
+    # textual is installed; disabled with --no-interactive.
+    # Applies to 'up' and 'bootstrap' only.
+    # ------------------------------------------------------------------
+    interactive = (
+        not args.no_interactive
+        and args.command in ("up", "bootstrap")
+        and sys.stdout.isatty()
+        and _textual_available()
+    )
+
+    if interactive:
+        from ldc.adapters.reporting.interactive_reporter import InteractiveReporter
+        from ldc.adapters.reporting.interactive_app import LdcInteractiveApp
+        from ldc.domain.models import ServiceState
+
+        reporter = InteractiveReporter()
+        container = Container(ldc_dir=Path(args.ldc_dir), reporter=reporter)
+        config = container.config_reader.read(config_path)
+        workers = args.workers if args.workers is not None else config.workers
+
+        states: Dict[str, ServiceState] = {}
+
+        if args.command == "up":
+            _service_names = args.services or None
+            _group = args.group
+            _skip = args.skip_checks
+
+            def task_fn() -> None:
+                container.up_cmd.execute(
+                    config,
+                    service_names=_service_names,
+                    group_name=_group,
+                    skip_checks=_skip,
+                    states=states,
+                    config_dir=config_dir,
+                    workers=workers,
+                )
+        else:  # bootstrap
+            _service_names = args.services or None
+            _group = args.group
+            _skip = args.skip_checks
+
+            def task_fn() -> None:
+                container.bootstrap_cmd.execute(
+                    config,
+                    service_names=_service_names,
+                    group_name=_group,
+                    skip_checks=_skip,
+                    states=states,
+                    config_dir=config_dir,
+                    workers=workers,
+                )
+
+        LdcInteractiveApp(states, config, reporter, task_fn).run()
+        return
+
     container = Container(ldc_dir=Path(args.ldc_dir))
     config = container.config_reader.read(config_path)
 
