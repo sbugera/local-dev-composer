@@ -1,7 +1,7 @@
 # CLI Commands
 
 ```
-ldc [-f FILE] [--ldc-dir DIR] [--workers N] [--no-interactive] <command> [options]
+ldc [-f FILE] [--ldc-dir DIR] [--workers N] <command> [options]
 ```
 
 | flag | default | description |
@@ -9,35 +9,6 @@ ldc [-f FILE] [--ldc-dir DIR] [--workers N] [--no-interactive] <command> [option
 | `-f FILE` | `composer.yml` | path to config file |
 | `--ldc-dir DIR` | `.ldc` | state and log directory |
 | `--workers N` | from `composer.yml` | max parallel threads for clone / install / up; overrides `workspace.workers` |
-| `--no-interactive` | off | disable the interactive TUI dashboard; use plain Rich output instead |
-
-## Interactive dashboard
-
-When running `up` or `bootstrap` in a real terminal (TTY), ldc automatically launches
-an interactive pseudo-GUI built with [Textual](https://textual.textualize.io/):
-
-```
-┌─ ldc — local-dev-composer ──────────────────────────────────┐
-│  Service         Status     PID    Started    Runtime        │
-│  postgres        HEALTHY    1234   10:30:01   external       │  ← arrow keys select
-│  gateway       ▶ STARTING   —      —          java           │
-│  user-service    PENDING    —      —          node           │
-├── Details ──── Logs ────────────────────────────────────────│
-│  Service:  gateway  ·  Runtime: java  ·  Depends: postgres  │
-│  Status:   ◌ starting…                                       │
-└─ [q] Quit  [↑↓] Select service  [Tab] Switch panel ─────────┘
-```
-
-**Controls**: `↑`/`↓` navigate the service table; `Tab` switches between the
-Details and Logs tabs; `q` exits the dashboard.
-
-**Logs tab**: streams the selected service's log file in real time (last 200 lines
-on open, then follows new output).
-
-**Requires**: `pip install "local-dev-composer[ui]"` (adds `textual>=0.50`).
-
-Disable with `ldc --no-interactive up` or set `NO_INTERACTIVE=1` is not needed —
-the plain Rich dashboard is used automatically when stdout is not a TTY (CI, pipes).
 
 ---
 
@@ -50,7 +21,6 @@ ldc bootstrap                        # everything
 ldc bootstrap --group gateway-dev    # minimum services for one feature area
 ldc bootstrap --skip-checks          # skip prerequisite checks
 ldc --workers 8 bootstrap            # clone, install, and start with 8 parallel workers
-ldc --no-interactive bootstrap       # plain Rich output instead of interactive TUI
 ```
 
 If a service fails to clone, it is skipped in install and start.
@@ -115,7 +85,6 @@ ldc up --group gateway-dev     # named group (see groups in config)
 ldc up --skip-checks           # skip prerequisite checks
 ldc --workers 1 up             # sequential, one service at a time
 ldc --workers 8 up             # up to 8 services starting concurrently
-ldc --no-interactive up        # plain Rich output instead of interactive TUI
 ```
 
 Per service:
@@ -126,10 +95,6 @@ Per service:
 Parallelism follows dependency levels: all services in the same level (no dependency between
 them) start concurrently. ldc waits for all services in a level to finish before advancing to
 the next level. If a dependency fails, all services that depend on it are skipped.
-
-When stdout is a TTY and `textual` is installed, shows an interactive TUI dashboard
-(see [Interactive dashboard](#interactive-dashboard) above).
-Otherwise shows a live Rich table updating every 500ms.
 
 ---
 
