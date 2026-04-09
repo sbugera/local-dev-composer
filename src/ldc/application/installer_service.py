@@ -1,12 +1,21 @@
 """Application service: runs install commands via subprocess."""
 from __future__ import annotations
 
+import os
 import subprocess
 from pathlib import Path
 from typing import Dict
 
+# On Windows, CREATE_NO_WINDOW prevents child processes from writing to the
+# terminal via the Windows Console API, which would corrupt the display even
+# when stdout/stderr are redirected to a log file.
 from ldc.domain.models import InstallConfig
 from ldc.ports.installer import IInstaller
+
+# On Windows, CREATE_NO_WINDOW prevents child processes from writing to the
+# terminal via the Windows Console API, which would corrupt the display even
+# when stdout/stderr are redirected to a log file.
+_EXTRA_FLAGS = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
 
 
 class SubprocessInstaller(IInstaller):
@@ -32,6 +41,7 @@ class SubprocessInstaller(IInstaller):
                 env=env,
                 stdout=fh,
                 stderr=fh,
+                creationflags=_EXTRA_FLAGS,
             )
 
         if result.returncode != 0:
