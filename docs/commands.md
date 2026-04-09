@@ -240,3 +240,48 @@ Checks:
 2. Git clone status for each service
 3. Process alive status + log reference if crashed
 4. Summary action list with exact commands to run
+
+
+---
+
+## ui
+
+Launch the interactive TUI dashboard. Opens as a **viewer** showing current service
+states read from the state store. Use keybindings to run commands on the selected
+service or all services.
+
+```bash
+ldc ui
+```
+
+Requires `textual`:
+
+```bash
+pip install 'local-dev-composer[ui]'
+```
+
+Keybindings:
+
+| Key | Action |
+|-----|--------|
+| `↑` / `↓` | Select service |
+| `Tab` | Switch between Details / Logs panel |
+| `u` | Up selected service |
+| `d` | Down selected service |
+| `r` | Restart selected service |
+| `b` | Rebuild selected service |
+| `i` | Install selected service |
+| `c` | Clone selected service |
+| `k` | Check prerequisites for selected service |
+| `U` | Up all services |
+| `D` | Down all services |
+| `R` | Restart all services |
+| `B` | Rebuild all services |
+| `I` | Install all services |
+| `C` | Clone all services |
+| `K` | Check all services |
+| `q` | Quit |
+
+Only one command runs at a time. The status table updates live while a command runs.
+All other commands (`up`, `bootstrap`, `install`, etc.) are unaffected and always
+use plain output.

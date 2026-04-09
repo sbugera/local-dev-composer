@@ -1,18 +1,20 @@
 """
 Adapter: Textual interactive TUI dashboard for ldc service orchestration.
 
+Opens as a status viewer. Use keybindings to run commands on the selected
+service or all services.
+
 Layout
 ------
 ┌─ ldc — local-dev-composer ──────────────────────────────────┐
-│  Service         Status     PID    Started    Runtime        │
-│  postgres        HEALTHY    1234   10:30:01   external       │  ← DataTable (2fr)
-│  gateway       ▶ STARTING   —      —          java           │    arrow keys select
-│  user-service    PENDING    —      —          node           │
-├── Details ──── Logs ─────────────────────────────────────── │  ← TabbedContent (3fr)
+│  Service         Status     PID    Started    Runtime        │  ← DataTable
+│  postgres        HEALTHY    1234   10:30:01   external       │    arrow keys select
+│  gateway       ▶ STARTING   —      —          java           │
+├── Details ──── Logs ─────────────────────────────────────── │  ← TabbedContent
 │  Service:  gateway                                           │
 │  Runtime:  java  ·  Depends: postgres                        │
 │  Status:   ◌ starting…                                       │
-└─ [q] Quit  [↑↓] Select service  [Tab] Switch panel ─────────┘
+└─ [u]Up [d]Down [i]Install [c]Clone [k]Check [U]Up All ───────┘
 
 Requires: pip install "local-dev-composer[ui]"   (textual>=0.50)
 """
@@ -39,10 +41,10 @@ from textual.widgets import (
 from rich.text import Text
 
 from ldc.adapters.reporting.interactive_reporter import InteractiveReporter
+from ldc.application.container import Container
 from ldc.domain.models import ServiceState, ServiceStatus, WorkspaceConfig
 
 
-# Status → (symbol, Rich colour)
 _STATUS_STYLE: Dict[str, tuple] = {
     ServiceStatus.PENDING.value:    ("○", "dim"),
     ServiceStatus.STARTING.value:   ("◌", "yellow"),
@@ -96,28 +98,44 @@ Screen {
 
 
 class LdcInteractiveApp(App):
-    """Interactive TUI dashboard for ldc service orchestration."""
+    """Interactive TUI dashboard — viewer + command launcher."""
 
     TITLE = "ldc — local-dev-composer"
     CSS = _CSS
     BINDINGS = [
-        Binding("q", "quit", "Quit"),
+        Binding("u", "service_up",       "Up"),
+        Binding("d", "service_down",     "Down"),
+        Binding("r", "service_restart",  "Restart"),
+        Binding("b", "service_rebuild",  "Rebuild"),
+        Binding("i", "service_install",  "Install"),
+        Binding("c", "service_clone",    "Clone"),
+        Binding("k", "service_check",    "Check"),
+        Binding("U", "all_up",           "Up All",      show=False),
+        Binding("D", "all_down",         "Down All",    show=False),
+        Binding("R", "all_restart",      "Restart All", show=False),
+        Binding("B", "all_rebuild",      "Rebuild All", show=False),
+        Binding("I", "all_install",      "Install All", show=False),
+        Binding("C", "all_clone",        "Clone All",   show=False),
+        Binding("K", "all_check",        "Check All",   show=False),
+        Binding("q", "quit",             "Quit"),
     ]
 
     def __init__(
         self,
-        states: Dict[str, ServiceState],
+        container: Container,
         config: WorkspaceConfig,
         reporter: InteractiveReporter,
-        task_fn: Callable,
+        config_dir: str = ".",
     ) -> None:
         super().__init__()
-        self._states = states
+        self._container = container
         self._config = config
         self._reporter = reporter
-        self._task_fn = task_fn
+        self._config_dir = config_dir
+        self._states: Dict[str, ServiceState] = {}
         self._selected: Optional[str] = None
         self._log_cancel = threading.Event()
+        self._busy = False
 
     # ------------------------------------------------------------------
     # Composition
@@ -147,9 +165,14 @@ class LdcInteractiveApp(App):
         table.add_column("Started", key="started", width=19)
         table.add_column("Runtime", key="runtime", width=10)
 
+        # Load current states from the state store (viewer mode)
+        for name in sorted(self._config.services):
+            stored = self._container.runner.get_state(name)
+            self._states[name] = stored if stored is not None else ServiceState(name=name)
+
         for name in sorted(self._config.services):
             svc = self._config.services[name]
-            state = self._states.get(name, ServiceState(name=name))
+            state = self._states[name]
             symbol, style = _STATUS_STYLE.get(state.status.value, ("?", "white"))
             table.add_row(
                 Text(symbol, style=style),
@@ -168,26 +191,14 @@ class LdcInteractiveApp(App):
             self._start_log_stream(self._selected)
 
         self.set_interval(0.5, self._refresh)
-        self._run_command()
+        self._show_message(
+            "info",
+            "u/d/r/b/i/c/k — Up/Down/Restart/Rebuild/Install/Clone/Check  "
+            "U/D/R/B/I/C/K — same for All  q:Quit",
+        )
 
     # ------------------------------------------------------------------
-    # Background command worker
-    # ------------------------------------------------------------------
-
-    @work(thread=True, name="command")
-    def _run_command(self) -> None:
-        """Execute the ldc command (up / bootstrap) in a background thread."""
-        try:
-            self._task_fn()
-            self.call_from_thread(
-                self._show_message, "success",
-                "All services processed — press q to quit"
-            )
-        except Exception as exc:
-            self.call_from_thread(self._show_message, "error", f"Command failed: {exc}")
-
-    # ------------------------------------------------------------------
-    # Periodic refresh (runs in the Textual event loop every 500ms)
+    # Periodic refresh
     # ------------------------------------------------------------------
 
     def _refresh(self) -> None:
@@ -195,9 +206,9 @@ class LdcInteractiveApp(App):
         for name, state in list(self._states.items()):
             symbol, style = _STATUS_STYLE.get(state.status.value, ("?", "white"))
             try:
-                table.update_cell(name, "icon", Text(symbol, style=style), update_width=False)
+                table.update_cell(name, "icon",   Text(symbol, style=style), update_width=False)
                 table.update_cell(name, "status", Text(state.status.value, style=style), update_width=False)
-                table.update_cell(name, "pid", str(state.pid or "—"), update_width=False)
+                table.update_cell(name, "pid",    str(state.pid or "—"), update_width=False)
                 if state.started_at:
                     table.update_cell(name, "started", state.started_at[:19], update_width=False)
             except Exception:
@@ -257,7 +268,6 @@ class LdcInteractiveApp(App):
     # ------------------------------------------------------------------
 
     def _start_log_stream(self, name: str) -> None:
-        """Cancel the existing log worker and start a new one for *name*."""
         self._log_cancel.set()
         self._log_cancel = threading.Event()
 
@@ -273,24 +283,21 @@ class LdcInteractiveApp(App):
 
     @work(thread=True, name="log-stream")
     def _stream_log_file(self, log_file: str, cancel: threading.Event) -> None:
-        """Tail *log_file* and write new lines into the RichLog widget."""
         path = Path(log_file)
 
-        # Wait up to 10 s for the file to appear (service may not have started yet)
-        deadline = time.monotonic() + 10
+        deadline = time.monotonic() + 5
         while not path.exists():
             if cancel.is_set():
                 return
             if time.monotonic() > deadline:
                 self.call_from_thread(
                     self.query_one("#log-view", RichLog).write,
-                    f"[dim]No log file yet: {log_file}[/dim]",
+                    f"[dim]No log file: {log_file}[/dim]",
                 )
                 return
             time.sleep(0.3)
 
         with path.open("r", encoding="utf-8", errors="replace") as fh:
-            # Show last 200 lines on initial open
             all_lines = fh.readlines()
             initial = all_lines[-200:] if len(all_lines) > 200 else all_lines
             log_widget = self.query_one("#log-view", RichLog)
@@ -299,13 +306,176 @@ class LdcInteractiveApp(App):
                     return
                 self.call_from_thread(log_widget.write, line.rstrip())
 
-            # Follow new lines
             while not cancel.is_set():
                 line = fh.readline()
                 if line:
                     self.call_from_thread(log_widget.write, line.rstrip())
                 else:
                     time.sleep(0.1)
+
+    # ------------------------------------------------------------------
+    # Background command runner
+    # ------------------------------------------------------------------
+
+    def _run_in_bg(self, label: str, fn: Callable) -> None:
+        if self._busy:
+            self._show_message("warning", "A command is already running — please wait")
+            return
+        self._busy = True
+        self._show_message("info", f"Running: {label}…")
+        self._execute_bg(fn, label)
+
+    @work(thread=True, name="command")
+    def _execute_bg(self, fn: Callable, label: str) -> None:
+        try:
+            fn()
+            self.call_from_thread(self._show_message, "success", f"{label} — done")
+        except Exception as exc:
+            self.call_from_thread(self._show_message, "error", f"{label} failed: {exc}")
+        finally:
+            self._busy = False
+            self.call_from_thread(self._reload_states)
+
+    def _reload_states(self) -> None:
+        """Refresh states from the state store after a command completes."""
+        for name in self._config.services:
+            stored = self._container.runner.get_state(name)
+            if stored is not None:
+                self._states[name] = stored
+
+    # ------------------------------------------------------------------
+    # Actions — selected service
+    # ------------------------------------------------------------------
+
+    def action_service_up(self) -> None:
+        if not self._selected:
+            return
+        name = self._selected
+        workers = self._config.workers
+        self._run_in_bg(f"up {name}", lambda: self._container.up_cmd.execute(
+            self._config,
+            service_names=[name],
+            states=self._states,
+            config_dir=self._config_dir,
+            workers=workers,
+        ))
+
+    def action_service_down(self) -> None:
+        if not self._selected:
+            return
+        name = self._selected
+        self._run_in_bg(f"down {name}", lambda: self._container.down_cmd.execute(
+            self._config,
+            service_names=[name],
+        ))
+
+    def action_service_install(self) -> None:
+        if not self._selected:
+            return
+        name = self._selected
+        workers = self._config.workers
+        self._run_in_bg(f"install {name}", lambda: self._container.install_cmd.execute(
+            self._config,
+            service_names=[name],
+            config_dir=self._config_dir,
+            workers=workers,
+        ))
+
+    def action_service_clone(self) -> None:
+        if not self._selected:
+            return
+        name = self._selected
+        self._run_in_bg(f"clone {name}", lambda: self._container.clone_cmd.execute(
+            self._config,
+            service_names=[name],
+        ))
+
+    def action_service_check(self) -> None:
+        if not self._selected:
+            return
+        name = self._selected
+        self._run_in_bg(f"check {name}", lambda: self._container.check_cmd.execute(
+            self._config,
+            service_names=[name],
+        ))
+
+    def action_service_restart(self) -> None:
+        if not self._selected:
+            return
+        name = self._selected
+        workers = self._config.workers
+        self._run_in_bg(f"restart {name}", lambda: self._container.restart_cmd.execute(
+            self._config,
+            service_names=[name],
+            config_dir=self._config_dir,
+            workers=workers,
+        ))
+
+    def action_service_rebuild(self) -> None:
+        if not self._selected:
+            return
+        name = self._selected
+        workers = self._config.workers
+        self._run_in_bg(f"rebuild {name}", lambda: self._container.rebuild_cmd.execute(
+            self._config,
+            service_names=[name],
+            config_dir=self._config_dir,
+            workers=workers,
+        ))
+
+    # ------------------------------------------------------------------
+    # Actions — global
+    # ------------------------------------------------------------------
+
+    def action_all_up(self) -> None:
+        workers = self._config.workers
+        self._run_in_bg("up all", lambda: self._container.up_cmd.execute(
+            self._config,
+            states=self._states,
+            config_dir=self._config_dir,
+            workers=workers,
+        ))
+
+    def action_all_down(self) -> None:
+        self._run_in_bg("down all", lambda: self._container.down_cmd.execute(
+            self._config,
+        ))
+
+    def action_all_restart(self) -> None:
+        workers = self._config.workers
+        self._run_in_bg("restart all", lambda: self._container.restart_cmd.execute(
+            self._config,
+            config_dir=self._config_dir,
+            workers=workers,
+        ))
+
+    def action_all_rebuild(self) -> None:
+        workers = self._config.workers
+        self._run_in_bg("rebuild all", lambda: self._container.rebuild_cmd.execute(
+            self._config,
+            config_dir=self._config_dir,
+            workers=workers,
+        ))
+
+    def action_all_install(self) -> None:
+        workers = self._config.workers
+        self._run_in_bg("install all", lambda: self._container.install_cmd.execute(
+            self._config,
+            config_dir=self._config_dir,
+            workers=workers,
+        ))
+
+    def action_all_clone(self) -> None:
+        workers = self._config.workers
+        self._run_in_bg("clone all", lambda: self._container.clone_cmd.execute(
+            self._config,
+            workers=workers,
+        ))
+
+    def action_all_check(self) -> None:
+        self._run_in_bg("check all", lambda: self._container.check_cmd.execute(
+            self._config,
+        ))
 
     # ------------------------------------------------------------------
     # Message bar
@@ -316,7 +486,7 @@ class LdcInteractiveApp(App):
         self.query_one("#message-bar", Label).update(Text(message[:120], style=style))
 
     # ------------------------------------------------------------------
-    # Key action
+    # Quit
     # ------------------------------------------------------------------
 
     def action_quit(self) -> None:

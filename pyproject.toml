@@ -32,6 +32,7 @@ dependencies = [
     "rich>=13.0.0",
     "pyyaml>=6.0",
     "psutil>=5.9.0",
+    "textual>=0.50",
 ]
 
 [project.urls]
@@ -40,9 +41,6 @@ Repository = "https://github.com/sbugera/local-dev-composer"
 Issues = "https://github.com/sbugera/local-dev-composer/issues"
 
 [project.optional-dependencies]
-ui = [
-    "textual>=0.50",
-]
 dev = [
     "pytest>=7.0",
     "pytest-cov>=4.0",
