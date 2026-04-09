@@ -49,16 +49,22 @@ class SubprocessGitClient(IGitClient):
         cwd: str,
         capture: bool = False,
     ) -> subprocess.CompletedProcess:
-        result = subprocess.run(
-            cmd,
-            cwd=cwd,
-            capture_output=capture,
-            text=True,
-            check=False,
-        )
+        if capture:
+            result = subprocess.run(
+                cmd, cwd=cwd, capture_output=True, text=True, check=False
+            )
+        else:
+            # Suppress stdout; capture stderr so we can include it in error messages
+            # without leaking git progress output to the terminal.
+            result = subprocess.run(
+                cmd, cwd=cwd,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.PIPE,
+                text=True, check=False,
+            )
         if result.returncode != 0:
-            stderr = result.stderr.strip() if capture else ""
+            stderr = (result.stderr or "").strip()
             raise RuntimeError(
-                f"git command failed (exit {result.returncode}): {' '.join(cmd)}\n{stderr}"
+                f"git command failed (exit {result.returncode}): {' '.join(str(c) for c in cmd)}\n{stderr}"
             )
         return result
