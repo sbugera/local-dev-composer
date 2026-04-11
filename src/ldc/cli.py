@@ -152,16 +152,8 @@ def main() -> None:
     config_dir = str(config_path.parent)
 
     if args.command == "ui":
-        try:
-            from ldc.adapters.reporting.interactive_reporter import InteractiveReporter
-            from ldc.adapters.reporting.interactive_app import LdcInteractiveApp
-        except ImportError:
-            print(
-                "Error: the 'ui' command requires textual.\n"
-                "Install it with:  pip install 'local-dev-composer[ui]'",
-                file=sys.stderr,
-            )
-            sys.exit(1)
+        from ldc.adapters.reporting.interactive_reporter import InteractiveReporter
+        from ldc.adapters.reporting.interactive_app import LdcInteractiveApp
 
         reporter = InteractiveReporter()
         container = Container(ldc_dir=Path(args.ldc_dir), reporter=reporter)
