@@ -20,6 +20,7 @@ Requires: pip install "local-dev-composer[ui]"   (textual>=0.50)
 """
 from __future__ import annotations
 
+import json
 import subprocess
 import threading
 import time
@@ -129,12 +130,14 @@ class LdcInteractiveApp(App):
         config: WorkspaceConfig,
         reporter: InteractiveReporter,
         config_dir: str = ".",
+        ldc_dir: Path = Path(".ldc"),
     ) -> None:
         super().__init__()
         self._container = container
         self._config = config
         self._reporter = reporter
         self._config_dir = config_dir
+        self._ui_config_path = ldc_dir / "ui.json"
         self._states: Dict[str, ServiceState] = {}
         self._selected: Optional[str] = None
         self._log_cancel = threading.Event()
@@ -201,6 +204,27 @@ class LdcInteractiveApp(App):
             "u/d/r/b/i/c/k — Up/Down/Restart/Rebuild/Install/Clone/Check  "
             "U/D/R/B/I/C/K — same for All  q:Quit",
         )
+
+        # Restore persisted theme (must be last — Textual triggers watch_theme on set)
+        try:
+            data = json.loads(self._ui_config_path.read_text(encoding="utf-8"))
+            if "theme" in data:
+                self.theme = data["theme"]
+        except (OSError, json.JSONDecodeError):
+            pass
+
+    def watch_theme(self, theme: str) -> None:
+        try:
+            data: dict = {}
+            if self._ui_config_path.exists():
+                try:
+                    data = json.loads(self._ui_config_path.read_text(encoding="utf-8"))
+                except (OSError, json.JSONDecodeError):
+                    pass
+            data["theme"] = theme
+            self._ui_config_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+        except OSError:
+            pass
 
     # ------------------------------------------------------------------
     # Periodic refresh

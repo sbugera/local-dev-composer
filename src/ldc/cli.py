@@ -159,7 +159,7 @@ def main() -> None:
         container = Container(ldc_dir=Path(args.ldc_dir), reporter=reporter)
         config = container.config_reader.read(config_path)
 
-        LdcInteractiveApp(container, config, reporter, config_dir).run()
+        LdcInteractiveApp(container, config, reporter, config_dir, Path(args.ldc_dir)).run()
         return
 
     container = Container(ldc_dir=Path(args.ldc_dir))
