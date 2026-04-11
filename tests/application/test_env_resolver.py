@@ -1,4 +1,5 @@
 """Unit tests for per-service environment resolution."""
+import os
 import tempfile
 from pathlib import Path
 
@@ -71,3 +72,42 @@ class TestResolveEnv:
         f2.write_text("X=second\n", encoding="utf-8")
         assert resolve_env({}, [str(f1), str(f2)], str(tmp_path))["X"] == "second"
         assert resolve_env({}, [str(f2), str(f1)], str(tmp_path))["X"] == "first"
+
+
+class TestPathDirs:
+
+    def test_path_dir_prepended(self, monkeypatch):
+        monkeypatch.setenv("PATH", "/usr/bin")
+        result = resolve_env({}, [], ".", ["/custom/bin"])
+        entries = result["PATH"].split(os.pathsep)
+        assert entries[0] == "/custom/bin"
+        assert "/usr/bin" in result["PATH"]
+
+    def test_var_expansion_in_path_dirs(self, monkeypatch):
+        monkeypatch.setenv("PATH", "/usr/bin")
+        result = resolve_env({"JAVA_HOME": "/jdk-21"}, [], ".", ["${JAVA_HOME}/bin"])
+        entries = result["PATH"].split(os.pathsep)
+        assert entries[0] == "/jdk-21/bin"
+
+    def test_multiple_path_dirs_prepended_in_order(self, monkeypatch):
+        monkeypatch.setenv("PATH", "/usr/bin")
+        result = resolve_env({}, [], ".", ["/first/bin", "/second/bin"])
+        entries = result["PATH"].split(os.pathsep)
+        assert entries[0] == "/first/bin"
+        assert entries[1] == "/second/bin"
+        assert "/usr/bin" in result["PATH"]
+
+    def test_no_duplicate_when_already_present(self, monkeypatch):
+        monkeypatch.setenv("PATH", "/jdk-21/bin" + os.pathsep + "/usr/bin")
+        result = resolve_env({}, [], ".", ["/jdk-21/bin"])
+        assert result["PATH"].count("/jdk-21/bin") == 1
+
+    def test_empty_path_dirs_leaves_path_unchanged(self, monkeypatch):
+        monkeypatch.setenv("PATH", "/usr/bin")
+        result = resolve_env({}, [], ".", [])
+        assert result["PATH"] == "/usr/bin"
+
+    def test_none_path_dirs_leaves_path_unchanged(self, monkeypatch):
+        monkeypatch.setenv("PATH", "/usr/bin")
+        result = resolve_env({}, [], ".")
+        assert result["PATH"] == "/usr/bin"

@@ -99,6 +99,41 @@ env:
   DB_URL: jdbc:postgresql://${DB_HOST}/mydb   # expanded from system env or env_files
 ```
 
+## path_dirs — adding entries to PATH
+
+Use `path_dirs` to prepend directories to the service's `PATH`. Each entry
+supports `${VAR}` expansion against the fully-merged environment (system env +
+env_files + inline env), so you can reference variables defined in `env:`.
+
+```yaml
+services:
+  worker:
+    env:
+      JAVA_HOME: "C:/dev/jdks/ms-21.0.10"
+    path_dirs:
+      - "${JAVA_HOME}/bin"
+    start:
+      command: java -jar build/libs/worker.jar
+```
+
+`path_dirs` entries are prepended in listed order. Entries already present in
+`PATH` are not duplicated.
+
+Multiple runtimes:
+
+```yaml
+services:
+  full-stack:
+    env:
+      JAVA_HOME: "C:/dev/jdks/ms-21.0.10"
+      NODE_HOME: "C:/dev/node-20"
+    path_dirs:
+      - "${JAVA_HOME}/bin"
+      - "${NODE_HOME}/bin"
+    start:
+      command: ./start-all.sh
+```
+
 ## System env passthrough
 
 System environment variables are inherited by all services unless overridden.
@@ -120,4 +155,3 @@ services:
 ```
 
 `call` is required on Windows to source the activate batch script so the subsequent command inherits the venv environment. On Linux/macOS use `source .venv/bin/activate` instead.
-

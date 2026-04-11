@@ -205,8 +205,11 @@ class SystemPrerequisiteChecker(IPrerequisiteChecker):
             return None
 
     _VERSION_RE = re.compile(r"(\d+)(?:\.(\d+))?(?:\.(\d+))?")
+    # JVM prints this prefix to stderr when JAVA_TOOL_OPTIONS / _JAVA_OPTIONS / JDK_JAVA_OPTIONS are set
+    _PICKED_UP_RE = re.compile(r"^Picked up \S+:.*$", re.MULTILINE)
 
     def _extract_version(self, text: str) -> Optional[str]:
+        text = self._PICKED_UP_RE.sub("", text)
         m = self._VERSION_RE.search(text)
         if not m:
             return None

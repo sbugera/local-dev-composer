@@ -6,6 +6,9 @@ Merge order (later wins):
   2. env_files entries, in listed order (each overrides the previous)
   3. Inline env dict (from composer.yml service.env)
 
+After merging, entries from path_dirs (if any) are prepended to PATH in order.
+Each entry supports ${VAR} expansion against the merged environment.
+
 env_files are resolved relative to config_dir (where composer.yml lives),
 not relative to the service working directory.
 """
@@ -23,6 +26,7 @@ def resolve_env(
     service_env: Dict[str, str],
     env_files: List[str],
     config_dir: str = ".",
+    path_dirs: List[str] = None,
 ) -> Dict[str, str]:
     merged = dict(os.environ)
 
@@ -32,6 +36,18 @@ def resolve_env(
             merged.update(_parse_env_file(file_path, merged))
 
     merged.update({k: _expand(v, merged) for k, v in service_env.items()})
+
+    if path_dirs:
+        path_key = next((k for k in merged if k.upper() == "PATH"), "PATH")
+        current = merged.get(path_key, "")
+        existing = current.split(os.pathsep) if current else []
+        to_prepend = []
+        for d in path_dirs:
+            expanded = _expand(d, merged)
+            if expanded and expanded not in existing:
+                to_prepend.append(expanded)
+        if to_prepend:
+            merged[path_key] = os.pathsep.join(to_prepend) + (os.pathsep + current if current else "")
 
     return merged
 

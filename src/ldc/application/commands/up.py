@@ -131,7 +131,7 @@ class UpCommand:
                 return
 
         # Resolve env early so prerequisite checks and startup use the same env
-        env = resolve_env(svc.env, svc.env_files, config_dir)
+        env = resolve_env(svc.env, svc.env_files, config_dir, svc.path_dirs)
 
         # --- Prerequisite check ---
         if not skip_checks and svc.requires:

@@ -75,6 +75,9 @@ services:
       DATABASE_URL: jdbc:postgresql://localhost:5432/gateway_db
       SPRING_PROFILES_ACTIVE: local
       CONFIG_SERVER_URL: http://localhost:8888
+      JAVA_HOME: "C:/dev/jdks/ms-17.0.10"   # override to use a specific JDK
+    path_dirs:
+      - "${JAVA_HOME}/bin"                    # prepend to PATH so 'java' resolves correctly
     requires:
       java: ">=17"
       commands: [mvn]

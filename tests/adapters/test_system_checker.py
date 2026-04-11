@@ -103,3 +103,17 @@ class TestCheckRuntimeWithEnv:
         with patch("subprocess.run", return_value=_fake_run('openjdk version "21.0.3"')):
             result = checker._check_runtime("java", "==21", env)
         assert result.passed
+
+
+class TestExtractVersion:
+
+    def test_ignores_java_tool_options_line(self, checker):
+        output = "Picked up JAVA_TOOL_OPTIONS: -Xms512m -Xmx1024m\nopenjdk version \"21.0.3\" 2024-01-16 LTS"
+        assert checker._extract_version(output) == "21.0.3"
+
+    def test_ignores_java_options_line(self, checker):
+        output = "Picked up _JAVA_OPTIONS: -Xmx512m\nopenjdk version \"17.0.5\" 2022-10-18 LTS"
+        assert checker._extract_version(output) == "17.0.5"
+
+    def test_plain_version_still_parsed(self, checker):
+        assert checker._extract_version('openjdk version "21.0.3"') == "21.0.3"

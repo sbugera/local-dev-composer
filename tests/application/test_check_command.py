@@ -75,7 +75,7 @@ class TestCheckCommand:
         with patch("ldc.application.commands.check.resolve_env", return_value=resolved) as mock_resolve:
             cmd.execute(config, config_dir="/proj")
 
-        mock_resolve.assert_called_once_with({"JAVA_HOME": "C:/jdk-17"}, [], "/proj")
+        mock_resolve.assert_called_once_with({"JAVA_HOME": "C:/jdk-17"}, [], "/proj", [])
         checker.check.assert_called_once_with(
             "svc", config.services["svc"].requires, resolved
         )

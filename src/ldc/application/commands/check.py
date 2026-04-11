@@ -39,7 +39,7 @@ class CheckCommand:
                 self._reporter.info(f"[{name}] No prerequisites defined — skipping")
                 continue
 
-            env = resolve_env(svc.env, svc.env_files, config_dir)
+            env = resolve_env(svc.env, svc.env_files, config_dir, svc.path_dirs)
             if auto_fix:
                 report = self._checker.auto_fix(name, svc.requires, env)
             else:
