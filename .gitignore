@@ -36,6 +36,9 @@ composer.*.yml
 .env.*
 !.env.example
 
+# Claude Code project settings (local tooling — not shared)
+.claude/
+
 # IDE
 .vscode/
 .idea/
