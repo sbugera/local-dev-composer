@@ -140,6 +140,7 @@ class LdcInteractiveApp(App):
         self._log_cancel = threading.Event()
         self._log_lines: List[str] = []
         self._busy = False
+        self._refresh_tick = 0
 
     # ------------------------------------------------------------------
     # Composition
@@ -205,7 +206,13 @@ class LdcInteractiveApp(App):
     # Periodic refresh
     # ------------------------------------------------------------------
 
+    _SYNC_EVERY = 4  # ticks — sync from disk every 4 × 0.5s = 2 seconds
+
     def _refresh(self) -> None:
+        self._refresh_tick += 1
+        if self._refresh_tick % self._SYNC_EVERY == 0:
+            self._sync_states()
+
         table = self.query_one(DataTable)
         for name, state in list(self._states.items()):
             symbol, style = _STATUS_STYLE.get(state.status.value, ("?", "white"))
@@ -223,6 +230,22 @@ class LdcInteractiveApp(App):
 
         for level, msg in self._reporter.drain_messages():
             self._show_message(level, msg)
+
+    def _sync_states(self) -> None:
+        """Reload state.json and verify process liveness for running services."""
+        self._container.runner.reload_states()
+        for name in self._config.services:
+            stored = self._container.runner.get_state(name)
+            if stored is not None:
+                self._states[name] = stored
+
+        # For services that look alive on disk, verify the process still exists
+        _alive = {ServiceStatus.HEALTHY, ServiceStatus.STARTING}
+        for state in self._states.values():
+            if state.status in _alive and state.pid is not None:
+                if not self._container.runner.is_alive(state):
+                    state.status = ServiceStatus.FAILED
+                    state.last_error = "Process no longer running"
 
     # ------------------------------------------------------------------
     # Row selection

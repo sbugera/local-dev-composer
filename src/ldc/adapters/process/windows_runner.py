@@ -131,6 +131,9 @@ class WindowsProcessRunner(IProcessRunner):
         self._states[state.name] = state
         self._persist()
 
+    def reload_states(self) -> None:
+        self._states = self._store.load()
+
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------

@@ -37,3 +37,7 @@ class IProcessRunner(ABC):
     @abstractmethod
     def update_state(self, state: ServiceState) -> None:
         """Persist an updated ServiceState (e.g. after health check resolves)."""
+
+    @abstractmethod
+    def reload_states(self) -> None:
+        """Re-read persisted state from the store, discarding any in-memory-only changes."""
