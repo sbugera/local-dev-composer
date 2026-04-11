@@ -297,15 +297,32 @@ class LdcInteractiveApp(App):
                 return
             time.sleep(0.3)
 
-        with path.open("r", encoding="utf-8", errors="replace") as fh:
-            all_lines = fh.readlines()
-            initial = all_lines[-200:] if len(all_lines) > 200 else all_lines
-            log_widget = self.query_one("#log-view", RichLog)
-            for line in initial:
-                if cancel.is_set():
-                    return
-                self.call_from_thread(log_widget.write, line.rstrip())
+        TAIL_LINES = 200
+        TAIL_BYTES = 131072  # 128 KB — enough for ~200 typical log lines without reading the whole file
 
+        # Seek to near the end in binary mode — avoids loading multi-GB files into memory
+        with path.open("rb") as raw:
+            raw.seek(0, 2)
+            file_size = raw.tell()
+            start_pos = max(0, file_size - TAIL_BYTES)
+            raw.seek(start_pos)
+            chunk = raw.read()
+
+        lines = chunk.decode("utf-8", errors="replace").splitlines()
+        if start_pos > 0 and lines:
+            lines = lines[1:]  # drop potentially partial first line at the cut point
+        initial = lines[-TAIL_LINES:]
+
+        if cancel.is_set():
+            return
+
+        log_widget = self.query_one("#log-view", RichLog)
+        # Write all initial lines in one UI dispatch so the view opens at the bottom
+        self.call_from_thread(lambda: [log_widget.write(ln) for ln in initial])
+
+        # Open a fresh handle positioned at EOF so readline() only returns new content
+        with path.open("r", encoding="utf-8", errors="replace") as fh:
+            fh.seek(0, 2)
             while not cancel.is_set():
                 line = fh.readline()
                 if line:
