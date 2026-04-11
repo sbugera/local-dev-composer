@@ -191,23 +191,24 @@ class SystemPrerequisiteChecker(IPrerequisiteChecker):
     def _version_satisfies(
         self, installed: str, constraint: str
     ) -> Tuple[bool, str]:
-        """Evaluate simple constraints like '>=17', '>11', '==3.9'."""
+        """Evaluate constraints like '>=17', '>11', '==17' (any 17.x.x), '==17.0.1' (exact)."""
         m = re.match(r"^(>=|>|<=|<|==)(\d+(?:\.\d+)?(?:\.\d+)?)$", constraint.strip())
         if not m:
             return True, "unparseable constraint — skipped"
 
         op, required_str = m.group(1), m.group(2)
-        inst_tuple = self._ver_tuple(installed)
-        req_tuple = self._ver_tuple(required_str)
+        inst_full = self._ver_tuple(installed)
+        req_full = self._ver_tuple(required_str)
 
-        ops = {
-            ">=": inst_tuple >= req_tuple,
-            ">": inst_tuple > req_tuple,
-            "<=": inst_tuple <= req_tuple,
-            "<": inst_tuple < req_tuple,
-            "==": inst_tuple == req_tuple,
-        }
-        satisfied = ops[op]
+        if op == "==":
+            # Compare only up to the precision given: ==17 matches 17.x.x, ==17.0 matches 17.0.x
+            precision = required_str.count(".") + 1
+            satisfied = inst_full[:precision] == req_full[:precision]
+        else:
+            ops = {">=": inst_full >= req_full, ">": inst_full > req_full,
+                   "<=": inst_full <= req_full, "<": inst_full < req_full}
+            satisfied = ops[op]
+
         return satisfied, f"{installed} {op} {required_str}"
 
     @staticmethod
