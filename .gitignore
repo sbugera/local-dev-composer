@@ -29,6 +29,7 @@ repos/
 composer.yml
 composer.*.yml
 !composer.example.yml
+!composer.demo.yml
 
 # Env secrets
 .env
