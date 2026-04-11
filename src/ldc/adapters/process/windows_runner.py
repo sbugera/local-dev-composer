@@ -9,6 +9,7 @@ Each service process:
 from __future__ import annotations
 
 import os
+import shlex
 import subprocess
 import sys
 from datetime import datetime, timezone
@@ -132,11 +133,23 @@ class WindowsProcessRunner(IProcessRunner):
     # Helpers
     # ------------------------------------------------------------------
 
+    _SHELL_OPS = frozenset({"&&", "||", "|", ">", ">>", "<", "2>", "2>>"})
+
     def _build_command(self, service: Service) -> list:
         cfg = service.start
         full_cmd = cfg.command
         if cfg.args:
             full_cmd += " " + " ".join(cfg.args)
+
+        # Pass args directly when possible — cmd.exe corrupts quoted/multi-line args.
+        # Check tokens (not raw string) so `->` inside a string isn't mistaken for `>`.
+        try:
+            parts = shlex.split(full_cmd.strip(), posix=True)
+            if not any(p in self._SHELL_OPS for p in parts):
+                return parts
+        except ValueError:
+            pass
+
         return ["cmd", "/c", full_cmd]
 
     def _persist(self) -> None:

@@ -25,15 +25,15 @@ services:
     description: "Fake Kafka-like message broker"
     dir: .
     start:
-      command: >-
+      command: |-
         python3 -c "
         import time, http.server, threading, random, datetime, sys
 
-        PORT = 9092
+        PORT = 19092
         STARTUP_DELAY = 3
 
         LOGS = [
-          'Broker started on port 9092',
+          'Broker started on port 19092',
           'Topic user-events: partition leader elected',
           'Topic order-events: replication factor 1',
           'Consumer group auth-consumers joined',
@@ -68,7 +68,7 @@ services:
         "
     health_check:
       type: http
-      url: http://localhost:9092/
+      url: http://localhost:19092/
       timeout: 30
       interval: 2
 
@@ -77,11 +77,11 @@ services:
     description: "Fake PostgreSQL database"
     dir: .
     start:
-      command: >-
+      command: |-
         python3 -c "
         import time, http.server, threading, random, datetime
 
-        PORT = 5432
+        PORT = 15432
         STARTUP_DELAY = 5
 
         LOGS = [
@@ -122,7 +122,7 @@ services:
         "
     health_check:
       type: http
-      url: http://localhost:5432/
+      url: http://localhost:15432/
       timeout: 30
       interval: 2
 
@@ -133,11 +133,11 @@ services:
     description: "Fake Spring Cloud Config Server"
     dir: .
     start:
-      command: >-
+      command: |-
         python3 -c "
         import time, http.server, threading, random, datetime
 
-        PORT = 8888
+        PORT = 18888
         STARTUP_DELAY = 8
 
         LOGS = [
@@ -180,7 +180,7 @@ services:
         "
     health_check:
       type: http
-      url: http://localhost:8888/actuator/health
+      url: http://localhost:18888/actuator/health
       timeout: 60
       interval: 3
 
@@ -192,11 +192,11 @@ services:
       - postgres
       - config-server
     start:
-      command: >-
+      command: |-
         python3 -c "
         import time, http.server, threading, random, datetime
 
-        PORT = 8081
+        PORT = 18081
         STARTUP_DELAY = 10
 
         LOGS = [
@@ -222,7 +222,7 @@ services:
 
         for msg in [
             'Starting AuthServiceApplication',
-            'Fetching config from http://localhost:8888',
+            'Fetching config from http://localhost:18888',
             'Running Flyway migrations on users_db (3 pending)',
             'Migrations complete. Schema version: 1.3.0',
             'Loading JWT signing keys from keystore',
@@ -246,7 +246,7 @@ services:
         "
     health_check:
       type: http
-      url: http://localhost:8081/actuator/health
+      url: http://localhost:18081/actuator/health
       timeout: 90
       interval: 3
 
@@ -261,11 +261,11 @@ services:
       - config-server
       - auth-service
     start:
-      command: >-
+      command: |-
         python3 -c "
         import time, http.server, threading, random, datetime
 
-        PORT = 8082
+        PORT = 18082
         STARTUP_DELAY = 7
 
         LOGS = [
@@ -291,10 +291,10 @@ services:
 
         for msg in [
             'Loading settings from config-server',
-            'Connecting to postgresql://localhost:5432/users_db',
+            'Connecting to postgresql://localhost:15432/users_db',
             'Running Alembic migrations...',
             'Migrations OK (version: 20240310)',
-            'Starting Uvicorn on 0.0.0.0:8082',
+            'Starting Uvicorn on 0.0.0.0:18082',
         ]:
             print(f'[user-service] {msg}', flush=True)
             time.sleep(STARTUP_DELAY / 5)
@@ -314,7 +314,7 @@ services:
         "
     health_check:
       type: http
-      url: http://localhost:8082/health
+      url: http://localhost:18082/health
       timeout: 60
       interval: 3
 
@@ -328,11 +328,11 @@ services:
       - config-server
       - auth-service
     start:
-      command: >-
+      command: |-
         python3 -c "
         import time, http.server, threading, random, datetime
 
-        PORT = 8083
+        PORT = 18083
         STARTUP_DELAY = 12
 
         LOGS = [
@@ -359,9 +359,9 @@ services:
 
         for msg in [
             'Starting OrderServiceApplication',
-            'Fetching config from http://localhost:8888',
+            'Fetching config from http://localhost:18888',
             'Running Flyway migrations on orders_db (5 pending)',
-            'Connecting to Kafka broker at localhost:9092',
+            'Connecting to Kafka broker at localhost:19092',
             'Subscribing to topics: payment-events, inventory-events',
             'Initialising saga orchestrator with 3 active saga types',
             'Warming up order validation cache',
@@ -384,7 +384,7 @@ services:
         "
     health_check:
       type: http
-      url: http://localhost:8083/actuator/health
+      url: http://localhost:18083/actuator/health
       timeout: 90
       interval: 3
 
@@ -395,11 +395,11 @@ services:
     depends_on:
       - message-broker
     start:
-      command: >-
+      command: |-
         python3 -c "
         import time, http.server, threading, random, datetime
 
-        PORT = 8084
+        PORT = 18084
         STARTUP_DELAY = 6
 
         LOGS = [
@@ -424,7 +424,7 @@ services:
                 time.sleep(random.uniform(0.6, 2.2))
 
         for msg in [
-            'Connecting to Kafka broker at localhost:9092',
+            'Connecting to Kafka broker at localhost:19092',
             'Subscribing to topic: notifications',
             'Loading email templates from ./templates',
             'SMTP connection to smtp.mailtrap.io verified',
@@ -447,7 +447,7 @@ services:
         "
     health_check:
       type: http
-      url: http://localhost:8084/health
+      url: http://localhost:18084/health
       timeout: 45
       interval: 3
 
@@ -463,11 +463,11 @@ services:
       - user-service
       - order-service
     start:
-      command: >-
+      command: |-
         python3 -c "
         import time, http.server, threading, random, datetime
 
-        PORT = 8080
+        PORT = 18080
         STARTUP_DELAY = 15
 
         LOGS = [
@@ -495,7 +495,7 @@ services:
 
         for msg in [
             'Starting GatewayApplication',
-            'Fetching config from http://localhost:8888',
+            'Fetching config from http://localhost:18888',
             'Loading route definitions (6 routes)',
             'Connecting to auth-service for token introspection',
             'Connecting to user-service upstream',
@@ -522,7 +522,7 @@ services:
         "
     health_check:
       type: http
-      url: http://localhost:8080/actuator/health
+      url: http://localhost:18080/actuator/health
       timeout: 120
       interval: 3
 
