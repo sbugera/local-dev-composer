@@ -29,6 +29,9 @@ Usage examples
   ldc logs gateway -f                # follow (tail -f) gateway log
 
   ldc doctor                         # full diagnostic with actionable fix hints
+
+  ldc ui                             # interactive TUI dashboard (requires textual)
+  ldc ui --group gateway-dev         # TUI for a named group
 """
 
 import argparse
@@ -72,7 +75,6 @@ def main() -> None:
         metavar="N",
         help="Max parallel workers for clone/install/up (overrides composer.yml; default: 4)",
     )
-
     sub = parser.add_subparsers(dest="command", required=True)
 
     # ---- bootstrap ----
@@ -141,10 +143,25 @@ def main() -> None:
     p_doctor = sub.add_parser("doctor", help="Full diagnostic with fix suggestions")
     p_doctor.add_argument("services", nargs="*")
 
+    # ---- ui ----
+    sub.add_parser("ui", help="Launch interactive TUI dashboard (requires textual)")
+
     args = parser.parse_args()
 
     config_path = _find_config(args.file)
     config_dir = str(config_path.parent)
+
+    if args.command == "ui":
+        from ldc.adapters.reporting.interactive_reporter import InteractiveReporter
+        from ldc.adapters.reporting.interactive_app import LdcInteractiveApp
+
+        reporter = InteractiveReporter()
+        container = Container(ldc_dir=Path(args.ldc_dir), reporter=reporter)
+        config = container.config_reader.read(config_path)
+
+        LdcInteractiveApp(container, config, reporter, config_dir, Path(args.ldc_dir)).run()
+        return
+
     container = Container(ldc_dir=Path(args.ldc_dir))
     config = container.config_reader.read(config_path)
 
@@ -175,6 +192,7 @@ def main() -> None:
             config,
             service_names=args.services or None,
             auto_fix=args.fix,
+            config_dir=config_dir,
         )
         sys.exit(0 if ok else 1)
 

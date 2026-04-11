@@ -85,27 +85,17 @@ class UpCommand:
             ):
                 states[name] = ServiceState(name=name, status=ServiceStatus.PENDING)
 
-        self._reporter.start_live_dashboard(states)
-
-        # When running in parallel, suppress per-service text log calls — the live
-        # dashboard table is the primary UI and shows state transitions in real time.
-        # In sequential mode (workers=1) text messages are kept for plain output.
-        silent = workers > 1
-
         # Lock for state-store writes (shared JSON file) when running in parallel
         lock = threading.Lock()
 
-        try:
-            for level in levels:
-                with ThreadPoolExecutor(max_workers=workers) as pool:
-                    list(pool.map(
-                        lambda name: self._start_one(  # noqa: B023
-                            name, config, states, skip_checks, config_dir, lock, silent
-                        ),
-                        level,
-                    ))
-        finally:
-            self._reporter.stop_live_dashboard()
+        for level in levels:
+            with ThreadPoolExecutor(max_workers=workers) as pool:
+                list(pool.map(
+                    lambda name: self._start_one(  # noqa: B023
+                        name, config, states, skip_checks, config_dir, lock
+                    ),
+                    level,
+                ))
 
         return states
 
@@ -117,16 +107,10 @@ class UpCommand:
         skip_checks: bool,
         config_dir: str,
         lock: threading.Lock,
-        silent: bool = False,
     ) -> None:
-        """Start a single service and update its state.
-
-        When *silent* is True, informational log calls are suppressed — the live
-        dashboard table is the primary UI and shows state transitions in real time.
-        """
+        """Start a single service and update its state."""
         def _log(method: str, msg: str) -> None:
-            if not silent:
-                getattr(self._reporter, method)(msg)
+            getattr(self._reporter, method)(msg)
 
         svc = config.services[name]
         state = states[name]
@@ -146,9 +130,12 @@ class UpCommand:
                     self._runner.update_state(state)
                 return
 
+        # Resolve env early so prerequisite checks and startup use the same env
+        env = resolve_env(svc.env, svc.env_files, config_dir, svc.path_dirs)
+
         # --- Prerequisite check ---
         if not skip_checks and svc.requires:
-            report = self._checker.check(name, svc.requires)
+            report = self._checker.check(name, svc.requires, env)
             if not report.passed:
                 failures = "; ".join(f.name for f in report.failures)
                 state.status = ServiceStatus.FAILED
@@ -180,7 +167,6 @@ class UpCommand:
             config.root, svc.name, svc.dir, svc.start.working_dir
         )
         log_file = str(Path(config.log_dir) / f"{name}.log")
-        env = resolve_env(svc.env, svc.env_files, config_dir)
         state.status = ServiceStatus.STARTING
         _log("info", f"[{name}] Starting…")
         t = time.monotonic()

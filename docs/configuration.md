@@ -49,6 +49,8 @@ services:
     env_files:                    # merged in order; last wins; secrets go here
       - .env.base
       - .env.my-service
+    path_dirs:                    # prepended to PATH; ${VAR} expansion supported
+      - "${JAVA_HOME}/bin"
 
     # Host prerequisites
     requires:

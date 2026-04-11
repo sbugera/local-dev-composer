@@ -18,7 +18,31 @@ requires:
 
 Operators: `>=`, `>`, `<=`, `<`, `==`
 
+`==` matches by precision — `==17` passes any `17.x.x`, `==17.0` passes any `17.0.x`, `==17.0.1` is an exact match.
+
 Java version is read from `java -version` (stderr). Others from `--version` stdout.
+
+#### Selecting a specific runtime installation
+
+Runtime checks use the service's resolved environment (`env` + `env_files`) to locate the binary. If `JAVA_HOME` (or `NODE_HOME`, `PYTHON_HOME`, `DOTNET_ROOT`) is set in the service env, the check uses that installation directly instead of whatever is first on the system `PATH`.
+
+This lets services with different runtime version requirements coexist on the same machine:
+
+```yaml
+service-java17:
+  env:
+    JAVA_HOME: "C:/jdk-17"
+  requires:
+    java: "==17"
+
+service-java21:
+  env:
+    JAVA_HOME: "C:/jdk-21"
+  requires:
+    java: "==21"
+```
+
+`JAVA_HOME` is resolved before the check runs and is also used when starting the service process, so the same setting controls both.
 
 ### Commands on PATH
 

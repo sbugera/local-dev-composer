@@ -20,17 +20,22 @@ from ldc.ports.prerequisite_checker import IPrerequisiteChecker
 
 class SystemPrerequisiteChecker(IPrerequisiteChecker):
 
-    def check(self, service_name: str, prereqs: Prerequisites) -> PrerequisiteReport:
+    def check(
+        self,
+        service_name: str,
+        prereqs: Prerequisites,
+        env: Optional[Dict[str, str]] = None,
+    ) -> PrerequisiteReport:
         results: List[CheckResult] = []
 
         if prereqs.java:
-            results.append(self._check_runtime("java", prereqs.java))
+            results.append(self._check_runtime("java", prereqs.java, env))
         if prereqs.python:
-            results.append(self._check_runtime("python", prereqs.python))
+            results.append(self._check_runtime("python", prereqs.python, env))
         if prereqs.node:
-            results.append(self._check_runtime("node", prereqs.node))
+            results.append(self._check_runtime("node", prereqs.node, env))
         if prereqs.dotnet:
-            results.append(self._check_runtime("dotnet", prereqs.dotnet))
+            results.append(self._check_runtime("dotnet", prereqs.dotnet, env))
 
         for cmd in prereqs.commands:
             results.append(self._check_command(cmd))
@@ -49,38 +54,56 @@ class SystemPrerequisiteChecker(IPrerequisiteChecker):
 
         return PrerequisiteReport(service_name=service_name, checks=results)
 
-    def auto_fix(self, service_name: str, prereqs: Prerequisites) -> PrerequisiteReport:
-        """Only auto-fixable action: create missing folders."""
+    def auto_fix(
+        self,
+        service_name: str,
+        prereqs: Prerequisites,
+        env: Optional[Dict[str, str]] = None,
+    ) -> PrerequisiteReport:
         for folder in prereqs.folders:
             try:
                 Path(folder).mkdir(parents=True, exist_ok=True)
             except Exception:
                 pass
-        return self.check(service_name, prereqs)
+        return self.check(service_name, prereqs, env)
 
     # ------------------------------------------------------------------
     # Individual checks
     # ------------------------------------------------------------------
 
-    def _check_runtime(self, runtime: str, constraint: str) -> CheckResult:
-        binary_map = {
-            "java": ("java", "-version"),
-            "python": ("python", "--version"),
-            "node": ("node", "--version"),
-            "dotnet": ("dotnet", "--version"),
-        }
-        binary, flag = binary_map[runtime]
-        installed_ver = self._get_version(binary, flag)
+    # Maps runtime name → (default binary, version flag, home env var, bin subpath)
+    _RUNTIME_INFO = {
+        "java":   ("java",   "-version", "JAVA_HOME",   "bin/java"),
+        "python": ("python", "--version", "PYTHON_HOME", "python"),
+        "node":   ("node",   "--version", "NODE_HOME",   "bin/node"),
+        "dotnet": ("dotnet", "--version", "DOTNET_ROOT", "dotnet"),
+    }
+
+    def _check_runtime(
+        self, runtime: str, constraint: str, env: Optional[Dict[str, str]] = None
+    ) -> CheckResult:
+        default_binary, flag, home_var, bin_subpath = self._RUNTIME_INFO[runtime]
+
+        # If the service env defines a home directory for this runtime, use it
+        # directly rather than relying on whatever is first on PATH.
+        home = (env or {}).get(home_var)
+        binary = str(Path(home) / bin_subpath) if home else default_binary
+
+        installed_ver = self._get_version(binary, flag, env)
 
         if installed_ver is None:
+            hint = (
+                f"'{home_var}' is set to '{home}' but no binary found at '{binary}'"
+                if home else self._runtime_install_hint(runtime)
+            )
             return CheckResult(
                 name=f"{runtime} runtime",
                 passed=False,
-                message=f"'{binary}' not found on PATH",
-                fix_hint=self._runtime_install_hint(runtime),
+                message=f"'{binary}' not found",
+                fix_hint=hint,
             )
 
-        satisfied, reason = self._version_satisfies(installed_ver, constraint)
+        satisfied, _ = self._version_satisfies(installed_ver, constraint)
         return CheckResult(
             name=f"{runtime} runtime",
             passed=satisfied,
@@ -165,23 +188,28 @@ class SystemPrerequisiteChecker(IPrerequisiteChecker):
     # Version utilities
     # ------------------------------------------------------------------
 
-    def _get_version(self, binary: str, flag: str) -> Optional[str]:
+    def _get_version(
+        self, binary: str, flag: str, env: Optional[Dict[str, str]] = None
+    ) -> Optional[str]:
         try:
             result = subprocess.run(
                 [binary, flag],
                 capture_output=True,
                 text=True,
                 timeout=10,
+                env=env,
             )
-            # java -version prints to stderr; others to stdout
             output = (result.stdout + result.stderr).strip()
             return self._extract_version(output)
         except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
             return None
 
     _VERSION_RE = re.compile(r"(\d+)(?:\.(\d+))?(?:\.(\d+))?")
+    # JVM prints this prefix to stderr when JAVA_TOOL_OPTIONS / _JAVA_OPTIONS / JDK_JAVA_OPTIONS are set
+    _PICKED_UP_RE = re.compile(r"^Picked up \S+:.*$", re.MULTILINE)
 
     def _extract_version(self, text: str) -> Optional[str]:
+        text = self._PICKED_UP_RE.sub("", text)
         m = self._VERSION_RE.search(text)
         if not m:
             return None
@@ -191,23 +219,24 @@ class SystemPrerequisiteChecker(IPrerequisiteChecker):
     def _version_satisfies(
         self, installed: str, constraint: str
     ) -> Tuple[bool, str]:
-        """Evaluate simple constraints like '>=17', '>11', '==3.9'."""
+        """Evaluate constraints like '>=17', '>11', '==17' (any 17.x.x), '==17.0.1' (exact)."""
         m = re.match(r"^(>=|>|<=|<|==)(\d+(?:\.\d+)?(?:\.\d+)?)$", constraint.strip())
         if not m:
             return True, "unparseable constraint — skipped"
 
         op, required_str = m.group(1), m.group(2)
-        inst_tuple = self._ver_tuple(installed)
-        req_tuple = self._ver_tuple(required_str)
+        inst_full = self._ver_tuple(installed)
+        req_full = self._ver_tuple(required_str)
 
-        ops = {
-            ">=": inst_tuple >= req_tuple,
-            ">": inst_tuple > req_tuple,
-            "<=": inst_tuple <= req_tuple,
-            "<": inst_tuple < req_tuple,
-            "==": inst_tuple == req_tuple,
-        }
-        satisfied = ops[op]
+        if op == "==":
+            # Compare only up to the precision given: ==17 matches 17.x.x, ==17.0 matches 17.0.x
+            precision = required_str.count(".") + 1
+            satisfied = inst_full[:precision] == req_full[:precision]
+        else:
+            ops = {">=": inst_full >= req_full, ">": inst_full > req_full,
+                   "<=": inst_full <= req_full, "<": inst_full < req_full}
+            satisfied = ops[op]
+
         return satisfied, f"{installed} {op} {required_str}"
 
     @staticmethod

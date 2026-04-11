@@ -103,6 +103,7 @@ class Service:
     # Environment
     env: Dict[str, str] = field(default_factory=dict)
     env_files: List[str] = field(default_factory=list)  # merged in order; last wins
+    path_dirs: List[str] = field(default_factory=list)  # prepended to PATH; ${VAR} expansion supported
 
     # Lifecycle
     requires: Optional[Prerequisites] = None

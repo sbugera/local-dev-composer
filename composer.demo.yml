@@ -1,0 +1,568 @@
+# ============================================================
+# composer.demo.yml — self-contained demo with fake services
+# Works on macOS/Linux using only Python 3 (no repos cloned).
+# Run with: python ldc.py --config composer.demo.yml up
+# ============================================================
+
+workspace:
+  root: ./demo-repos       # unused — all services have dir set
+  log_dir: ./demo-logs
+  workers: 4
+
+# ============================================================
+# Shared Python snippet injected into every service start cmd.
+# Each service sleeps N seconds (simulates slow startup), then
+# spins up a tiny HTTP server on its port and starts printing
+# realistic log lines forever.
+# ============================================================
+
+services:
+
+  # ---- Tier 0: infrastructure ----
+
+  message-broker:
+    runtime: external
+    description: "Fake Kafka-like message broker"
+    dir: .
+    start:
+      command: |-
+        python3 -c "
+        import time, http.server, threading, random, datetime, sys
+
+        PORT = 19092
+        STARTUP_DELAY = 3
+
+        LOGS = [
+          'Broker started on port 19092',
+          'Topic user-events: partition leader elected',
+          'Topic order-events: replication factor 1',
+          'Consumer group auth-consumers joined',
+          'Consumer group order-consumers joined',
+          'Heartbeat from consumer group user-consumers',
+          'Offset commit: user-events/0 -> 14823',
+          'Offset commit: order-events/0 -> 7341',
+          'Produced 12 messages to topic notifications',
+          'Log compaction completed for topic audit-log',
+        ]
+
+        def log_loop():
+            while True:
+                ts = datetime.datetime.now().strftime('%H:%M:%S.%f')[:-3]
+                print(f'[{ts}] [broker] {random.choice(LOGS)}', flush=True)
+                time.sleep(random.uniform(0.8, 2.5))
+
+        print('[broker] Initialising ZooKeeper connection...', flush=True)
+        time.sleep(STARTUP_DELAY)
+        print(f'[broker] Listening on port {PORT}', flush=True)
+
+        threading.Thread(target=log_loop, daemon=True).start()
+
+        class H(http.server.BaseHTTPRequestHandler):
+            def do_GET(self):
+                self.send_response(200)
+                self.end_headers()
+                self.wfile.write(b'{\"status\":\"UP\"}')
+            def log_message(self, *a): pass
+
+        http.server.HTTPServer(('', PORT), H).serve_forever()
+        "
+    health_check:
+      type: http
+      url: http://localhost:19092/
+      timeout: 30
+      interval: 2
+
+  postgres:
+    runtime: external
+    description: "Fake PostgreSQL database"
+    dir: .
+    start:
+      command: |-
+        python3 -c "
+        import time, http.server, threading, random, datetime
+
+        PORT = 15432
+        STARTUP_DELAY = 5
+
+        LOGS = [
+          'checkpoint complete: wrote 128 buffers',
+          'autovacuum: processing database users_db',
+          'autovacuum: processing database orders_db',
+          'connection received: host=127.0.0.1 port=51234',
+          'connection authorized: user=app database=users_db',
+          'slow query (450ms): SELECT * FROM orders WHERE status=pending',
+          'lock acquired on relation users for ShareLock',
+          'WAL sender process started',
+          'checkpoint starting: time',
+          'database system is ready to accept connections',
+        ]
+
+        def log_loop():
+            while True:
+                ts = datetime.datetime.now().strftime('%H:%M:%S.%f')[:-3]
+                print(f'[{ts}] [postgres] {random.choice(LOGS)}', flush=True)
+                time.sleep(random.uniform(1.0, 3.0))
+
+        print('[postgres] Loading shared memory...', flush=True)
+        time.sleep(1)
+        print('[postgres] Recovering from WAL...', flush=True)
+        time.sleep(STARTUP_DELAY - 1)
+        print(f'[postgres] Ready on port {PORT}', flush=True)
+
+        threading.Thread(target=log_loop, daemon=True).start()
+
+        class H(http.server.BaseHTTPRequestHandler):
+            def do_GET(self):
+                self.send_response(200)
+                self.end_headers()
+                self.wfile.write(b'{\"status\":\"UP\"}')
+            def log_message(self, *a): pass
+
+        http.server.HTTPServer(('', PORT), H).serve_forever()
+        "
+    health_check:
+      type: http
+      url: http://localhost:15432/
+      timeout: 30
+      interval: 2
+
+  # ---- Tier 1: config + auth (no app deps) ----
+
+  config-server:
+    runtime: java
+    description: "Fake Spring Cloud Config Server"
+    dir: .
+    start:
+      command: |-
+        python3 -c "
+        import time, http.server, threading, random, datetime
+
+        PORT = 18888
+        STARTUP_DELAY = 8
+
+        LOGS = [
+          'Refreshed config for service gateway, profile local',
+          'Refreshed config for service user-service, profile local',
+          'Cache miss for /auth-service/local — fetching from git',
+          'Git pull: origin/main -> refs/remotes/origin/main',
+          'Serving /gateway/local (4 properties)',
+          'Serving /user-service/local (7 properties)',
+          'Encryption key loaded from keystore',
+          'Property source reload triggered by webhook',
+        ]
+
+        def log_loop():
+            while True:
+                ts = datetime.datetime.now().strftime('%H:%M:%S.%f')[:-3]
+                print(f'[{ts}] [config-server] {random.choice(LOGS)}', flush=True)
+                time.sleep(random.uniform(1.5, 4.0))
+
+        for msg in [
+            'Starting ConfigServerApplication',
+            'Initialising Spring embedded WebApplicationContext',
+            'Loading config from git backend: file:///tmp/config-repo',
+        ]:
+            print(f'[config-server] {msg}', flush=True)
+            time.sleep(STARTUP_DELAY / 3)
+
+        print(f'[config-server] Started on port {PORT}', flush=True)
+
+        threading.Thread(target=log_loop, daemon=True).start()
+
+        class H(http.server.BaseHTTPRequestHandler):
+            def do_GET(self):
+                self.send_response(200)
+                self.end_headers()
+                self.wfile.write(b'{\"status\":\"UP\"}')
+            def log_message(self, *a): pass
+
+        http.server.HTTPServer(('', PORT), H).serve_forever()
+        "
+    health_check:
+      type: http
+      url: http://localhost:18888/actuator/health
+      timeout: 60
+      interval: 3
+
+  auth-service:
+    runtime: java
+    description: "Fake JWT auth + identity service"
+    dir: .
+    depends_on:
+      - postgres
+      - config-server
+    start:
+      command: |-
+        python3 -c "
+        import time, http.server, threading, random, datetime
+
+        PORT = 18081
+        STARTUP_DELAY = 10
+
+        LOGS = [
+          'POST /auth/token 200 (42ms)',
+          'POST /auth/token 401 invalid_client (12ms)',
+          'GET  /auth/userinfo 200 (18ms)',
+          'POST /auth/refresh 200 (35ms)',
+          'Token issued for user alice@example.com, exp=3600s',
+          'Token issued for user bob@example.com, exp=3600s',
+          'Revoked 3 expired sessions from cache',
+          'JWKS endpoint served 2 active keys',
+          'Rate limit hit for IP 10.0.0.55 (100 req/min)',
+          'Audit: login success for alice@example.com from 10.0.0.10',
+          'HikariCP: pool size 10, active 2, idle 8',
+        ]
+
+        def log_loop():
+            while True:
+                ts = datetime.datetime.now().strftime('%H:%M:%S.%f')[:-3]
+                lvl = random.choice(['INFO ', 'INFO ', 'INFO ', 'WARN ', 'DEBUG'])
+                print(f'[{ts}] {lvl} [auth-service] {random.choice(LOGS)}', flush=True)
+                time.sleep(random.uniform(0.5, 2.0))
+
+        for msg in [
+            'Starting AuthServiceApplication',
+            'Fetching config from http://localhost:18888',
+            'Running Flyway migrations on users_db (3 pending)',
+            'Migrations complete. Schema version: 1.3.0',
+            'Loading JWT signing keys from keystore',
+            'Initialising token cache (max: 10000 entries)',
+        ]:
+            print(f'[auth-service] {msg}', flush=True)
+            time.sleep(STARTUP_DELAY / 6)
+
+        print(f'[auth-service] Tomcat started on port(s): {PORT}', flush=True)
+
+        threading.Thread(target=log_loop, daemon=True).start()
+
+        class H(http.server.BaseHTTPRequestHandler):
+            def do_GET(self):
+                self.send_response(200)
+                self.end_headers()
+                self.wfile.write(b'{\"status\":\"UP\",\"db\":\"UP\"}')
+            def log_message(self, *a): pass
+
+        http.server.HTTPServer(('', PORT), H).serve_forever()
+        "
+    health_check:
+      type: http
+      url: http://localhost:18081/actuator/health
+      timeout: 90
+      interval: 3
+
+  # ---- Tier 2: domain services ----
+
+  user-service:
+    runtime: python
+    description: "Fake user management microservice (FastAPI)"
+    dir: .
+    depends_on:
+      - postgres
+      - config-server
+      - auth-service
+    start:
+      command: |-
+        python3 -c "
+        import time, http.server, threading, random, datetime
+
+        PORT = 18082
+        STARTUP_DELAY = 7
+
+        LOGS = [
+          'GET  /users/me 200 (22ms)',
+          'GET  /users/alice 200 (31ms)',
+          'PUT  /users/alice 204 (55ms)',
+          'POST /users 201 user_id=u-9923 (88ms)',
+          'DELETE /users/u-0001 404 not_found (9ms)',
+          'Cache: HIT users:alice (ttl=280s)',
+          'Cache: MISS users:charlie — fetching from DB',
+          'Background job: purge_inactive_users started',
+          'Background job: purge_inactive_users done (12 deleted)',
+          'DB pool: 3/20 connections in use',
+          'Audit trail written for user u-9923',
+        ]
+
+        def log_loop():
+            while True:
+                ts = datetime.datetime.now().strftime('%H:%M:%S.%f')[:-3]
+                lvl = random.choice(['INFO ', 'INFO ', 'INFO ', 'WARN ', 'DEBUG'])
+                print(f'[{ts}] {lvl} [user-service] {random.choice(LOGS)}', flush=True)
+                time.sleep(random.uniform(0.4, 1.8))
+
+        for msg in [
+            'Loading settings from config-server',
+            'Connecting to postgresql://localhost:15432/users_db',
+            'Running Alembic migrations...',
+            'Migrations OK (version: 20240310)',
+            'Starting Uvicorn on 0.0.0.0:18082',
+        ]:
+            print(f'[user-service] {msg}', flush=True)
+            time.sleep(STARTUP_DELAY / 5)
+
+        print(f'[user-service] Application startup complete', flush=True)
+
+        threading.Thread(target=log_loop, daemon=True).start()
+
+        class H(http.server.BaseHTTPRequestHandler):
+            def do_GET(self):
+                self.send_response(200)
+                self.end_headers()
+                self.wfile.write(b'{\"status\":\"ok\"}')
+            def log_message(self, *a): pass
+
+        http.server.HTTPServer(('', PORT), H).serve_forever()
+        "
+    health_check:
+      type: http
+      url: http://localhost:18082/health
+      timeout: 60
+      interval: 3
+
+  order-service:
+    runtime: java
+    description: "Fake order processing service"
+    dir: .
+    depends_on:
+      - postgres
+      - message-broker
+      - config-server
+      - auth-service
+    start:
+      command: |-
+        python3 -c "
+        import time, http.server, threading, random, datetime
+
+        PORT = 18083
+        STARTUP_DELAY = 12
+
+        LOGS = [
+          'POST /orders 201 order_id=ord-7821 (120ms)',
+          'GET  /orders/ord-7821 200 (18ms)',
+          'PUT  /orders/ord-7821/cancel 204 (44ms)',
+          'Published event OrderCreated to topic order-events',
+          'Published event OrderCancelled to topic order-events',
+          'Consumed PaymentConfirmed for order ord-7820',
+          'Consumed InventoryReserved for order ord-7819',
+          'Saga step 2/4: awaiting PaymentService response',
+          'Saga step 3/4: payment confirmed, reserving inventory',
+          'Saga completed for order ord-7818 — status: FULFILLED',
+          'Dead-letter queue: 0 messages pending',
+          'Scheduled job: expire_pending_orders checked 1402 orders',
+        ]
+
+        def log_loop():
+            while True:
+                ts = datetime.datetime.now().strftime('%H:%M:%S.%f')[:-3]
+                lvl = random.choice(['INFO ', 'INFO ', 'INFO ', 'WARN ', 'DEBUG'])
+                print(f'[{ts}] {lvl} [order-service] {random.choice(LOGS)}', flush=True)
+                time.sleep(random.uniform(0.3, 1.5))
+
+        for msg in [
+            'Starting OrderServiceApplication',
+            'Fetching config from http://localhost:18888',
+            'Running Flyway migrations on orders_db (5 pending)',
+            'Connecting to Kafka broker at localhost:19092',
+            'Subscribing to topics: payment-events, inventory-events',
+            'Initialising saga orchestrator with 3 active saga types',
+            'Warming up order validation cache',
+        ]:
+            print(f'[order-service] {msg}', flush=True)
+            time.sleep(STARTUP_DELAY / 7)
+
+        print(f'[order-service] Tomcat started on port(s): {PORT}', flush=True)
+
+        threading.Thread(target=log_loop, daemon=True).start()
+
+        class H(http.server.BaseHTTPRequestHandler):
+            def do_GET(self):
+                self.send_response(200)
+                self.end_headers()
+                self.wfile.write(b'{\"status\":\"UP\",\"kafka\":\"UP\",\"db\":\"UP\"}')
+            def log_message(self, *a): pass
+
+        http.server.HTTPServer(('', PORT), H).serve_forever()
+        "
+    health_check:
+      type: http
+      url: http://localhost:18083/actuator/health
+      timeout: 90
+      interval: 3
+
+  notification-service:
+    runtime: node
+    description: "Fake email/SMS notification service"
+    dir: .
+    depends_on:
+      - message-broker
+    start:
+      command: |-
+        python3 -c "
+        import time, http.server, threading, random, datetime
+
+        PORT = 18084
+        STARTUP_DELAY = 6
+
+        LOGS = [
+          'Email sent to alice@example.com: Order confirmation ord-7821',
+          'SMS sent to +1-555-0100: Your order has shipped',
+          'Email sent to bob@example.com: Password reset link',
+          'Consumed notification.email from topic notifications',
+          'Consumed notification.sms from topic notifications',
+          'Template rendered: order_confirmation in 4ms',
+          'Template rendered: password_reset in 2ms',
+          'SMTP connection pool: 2/5 slots in use',
+          'Retry queue: 0 pending, 0 failed',
+          'Daily digest scheduled for 2024-03-11T08:00:00Z',
+          'Unsubscribe processed for user u-0042',
+        ]
+
+        def log_loop():
+            while True:
+                ts = datetime.datetime.now().strftime('%H:%M:%S.%f')[:-3]
+                lvl = random.choice(['INFO ', 'INFO ', 'INFO ', 'WARN '])
+                print(f'[{ts}] {lvl} [notification-service] {random.choice(LOGS)}', flush=True)
+                time.sleep(random.uniform(0.6, 2.2))
+
+        for msg in [
+            'Connecting to Kafka broker at localhost:19092',
+            'Subscribing to topic: notifications',
+            'Loading email templates from ./templates',
+            'SMTP connection to smtp.mailtrap.io verified',
+        ]:
+            print(f'[notification-service] {msg}', flush=True)
+            time.sleep(STARTUP_DELAY / 4)
+
+        print(f'[notification-service] Server listening on port {PORT}', flush=True)
+
+        threading.Thread(target=log_loop, daemon=True).start()
+
+        class H(http.server.BaseHTTPRequestHandler):
+            def do_GET(self):
+                self.send_response(200)
+                self.end_headers()
+                self.wfile.write(b'{\"status\":\"ok\"}')
+            def log_message(self, *a): pass
+
+        http.server.HTTPServer(('', PORT), H).serve_forever()
+        "
+    health_check:
+      type: http
+      url: http://localhost:18084/health
+      timeout: 45
+      interval: 3
+
+  # ---- Tier 3: edge ----
+
+  api-gateway:
+    runtime: java
+    description: "Fake API Gateway (Spring Cloud Gateway)"
+    dir: .
+    depends_on:
+      - config-server
+      - auth-service
+      - user-service
+      - order-service
+    start:
+      command: |-
+        python3 -c "
+        import time, http.server, threading, random, datetime
+
+        PORT = 18080
+        STARTUP_DELAY = 15
+
+        LOGS = [
+          'GET  /api/v1/users/me -> user-service 200 (28ms)',
+          'POST /api/v1/orders  -> order-service 201 (134ms)',
+          'GET  /api/v1/orders/ord-7821 -> order-service 200 (22ms)',
+          'POST /api/v1/auth/token -> auth-service 200 (51ms)',
+          'GET  /api/v1/users/alice -> user-service 200 (33ms)',
+          'Rate limit: 10.0.0.55 throttled (200 req/min exceeded)',
+          'Circuit breaker: order-service CLOSED (healthy)',
+          'Circuit breaker: user-service CLOSED (healthy)',
+          'Retry: user-service attempt 2/3 after 500ms',
+          'JWT validated for user alice@example.com (exp: 3542s)',
+          'CORS preflight: OPTIONS /api/v1/orders 204',
+          'Request log: p99=98ms p95=55ms p50=24ms (last 60s)',
+          'Route refreshed: /api/v1/** -> upstream updated',
+        ]
+
+        def log_loop():
+            while True:
+                ts = datetime.datetime.now().strftime('%H:%M:%S.%f')[:-3]
+                lvl = random.choice(['INFO ', 'INFO ', 'INFO ', 'WARN ', 'DEBUG'])
+                print(f'[{ts}] {lvl} [api-gateway] {random.choice(LOGS)}', flush=True)
+                time.sleep(random.uniform(0.2, 1.2))
+
+        for msg in [
+            'Starting GatewayApplication',
+            'Fetching config from http://localhost:18888',
+            'Loading route definitions (6 routes)',
+            'Connecting to auth-service for token introspection',
+            'Connecting to user-service upstream',
+            'Connecting to order-service upstream',
+            'Initialising rate limiter (Redis: in-memory fallback)',
+            'Initialising circuit breakers for all upstreams',
+            'Warming up connection pool',
+        ]:
+            print(f'[api-gateway] {msg}', flush=True)
+            time.sleep(STARTUP_DELAY / 9)
+
+        print(f'[api-gateway] Netty started on port(s): {PORT}', flush=True)
+
+        threading.Thread(target=log_loop, daemon=True).start()
+
+        class H(http.server.BaseHTTPRequestHandler):
+            def do_GET(self):
+                self.send_response(200)
+                self.end_headers()
+                self.wfile.write(b'{\"status\":\"UP\"}')
+            def log_message(self, *a): pass
+
+        http.server.HTTPServer(('', PORT), H).serve_forever()
+        "
+    health_check:
+      type: http
+      url: http://localhost:18080/actuator/health
+      timeout: 120
+      interval: 3
+
+# ============================================================
+# Groups
+# ============================================================
+groups:
+
+  infra:
+    description: "Infrastructure only (broker + DB)"
+    services:
+      - message-broker
+      - postgres
+
+  auth-stack:
+    description: "Config + auth — enough to test token flows"
+    services:
+      - postgres
+      - config-server
+      - auth-service
+
+  backend:
+    description: "All backend services except the gateway"
+    services:
+      - message-broker
+      - postgres
+      - config-server
+      - auth-service
+      - user-service
+      - order-service
+      - notification-service
+
+  all:
+    description: "Full stack including API gateway"
+    services:
+      - message-broker
+      - postgres
+      - config-server
+      - auth-service
+      - user-service
+      - order-service
+      - notification-service
+      - api-gateway

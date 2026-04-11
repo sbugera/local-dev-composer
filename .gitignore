@@ -29,11 +29,15 @@ repos/
 composer.yml
 composer.*.yml
 !composer.example.yml
+!composer.demo.yml
 
 # Env secrets
 .env
 .env.*
 !.env.example
+
+# Claude Code project settings (local tooling — not shared)
+.claude/
 
 # IDE
 .vscode/

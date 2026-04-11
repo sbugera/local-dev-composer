@@ -143,3 +143,14 @@ pytest tests/ -v
 
 Domain and application layers are unit-testable in isolation — inject mock adapters
 via constructor injection in `Container` or by instantiating commands directly.
+
+## Definition of done
+
+A change is ready to commit and push only when:
+
+1. The change is covered by unit tests.
+2. All tests pass (`pytest tests/ -v` — green, no failures).
+
+If a pre-existing test fails after a change:
+- First determine whether the change broke existing functionality or whether the test needs to be updated to reflect intentional new behaviour.
+- Do not silently adjust or remove a failing test. If the test needs to change, explain why to the user and get confirmation before modifying it.

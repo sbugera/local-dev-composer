@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from typing import List, Optional
 
+from ldc.application.env_resolver import resolve_env
 from ldc.domain.models import WorkspaceConfig
 from ldc.ports.prerequisite_checker import IPrerequisiteChecker
 from ldc.ports.reporter import IReporter
@@ -23,12 +24,9 @@ class CheckCommand:
         config: WorkspaceConfig,
         service_names: Optional[List[str]] = None,
         auto_fix: bool = False,
+        config_dir: str = ".",
     ) -> bool:
-        """
-        Run prerequisite checks.
-
-        Returns True if all checks passed, False otherwise.
-        """
+        """Returns True if all checks passed, False otherwise."""
         targets = list(service_names or config.services.keys())
         reports = []
 
@@ -41,10 +39,11 @@ class CheckCommand:
                 self._reporter.info(f"[{name}] No prerequisites defined — skipping")
                 continue
 
+            env = resolve_env(svc.env, svc.env_files, config_dir, svc.path_dirs)
             if auto_fix:
-                report = self._checker.auto_fix(name, svc.requires)
+                report = self._checker.auto_fix(name, svc.requires, env)
             else:
-                report = self._checker.check(name, svc.requires)
+                report = self._checker.check(name, svc.requires, env)
 
             reports.append(report)
 

@@ -12,9 +12,7 @@ import sys
 from pathlib import Path
 
 # Ensure src/ is on sys.path before importing the package
-_src = str(Path(__file__).parent / "src")
-if _src not in sys.path:
-    sys.path.insert(0, _src)
+sys.path.insert(0, str(Path(__file__).parent / "src"))
 
 from ldc.cli import main  # noqa: E402  (import after path fixup)
 

@@ -87,6 +87,7 @@ class YamlConfigReader(IConfigReader):
             dir=raw.get("dir"),
             env=raw.get("env", {}),
             env_files=self._parse_env_files(raw),
+            path_dirs=raw.get("path_dirs", []),
             requires=self._parse_prerequisites(raw.get("requires")),
             install=self._parse_install(raw.get("install")),
             start=self._parse_start(raw.get("start")),

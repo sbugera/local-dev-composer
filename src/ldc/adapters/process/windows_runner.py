@@ -9,6 +9,8 @@ Each service process:
 from __future__ import annotations
 
 import os
+import shlex
+import shutil
 import subprocess
 import sys
 from datetime import datetime, timezone
@@ -45,6 +47,7 @@ class WindowsProcessRunner(IProcessRunner):
         Path(log_file).parent.mkdir(parents=True, exist_ok=True)
 
         cmd = self._build_command(service)
+        cmd = self._resolve_executable(cmd, env)
         log_fh = open(log_file, "a", encoding="utf-8", buffering=1)  # line-buffered
 
         # Write a session header to the log
@@ -128,16 +131,46 @@ class WindowsProcessRunner(IProcessRunner):
         self._states[state.name] = state
         self._persist()
 
+    def reload_states(self) -> None:
+        self._states = self._store.load()
+
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
+
+    _SHELL_OPS = frozenset({"&&", "||", "|", ">", ">>", "<", "2>", "2>>"})
 
     def _build_command(self, service: Service) -> list:
         cfg = service.start
         full_cmd = cfg.command
         if cfg.args:
             full_cmd += " " + " ".join(cfg.args)
+
+        # Pass args directly when possible — cmd.exe corrupts quoted/multi-line args.
+        # Check tokens (not raw string) so `->` inside a string isn't mistaken for `>`.
+        try:
+            parts = shlex.split(full_cmd.strip(), posix=True)
+            if not any(p in self._SHELL_OPS for p in parts):
+                return parts
+        except ValueError:
+            pass
+
         return ["cmd", "/c", full_cmd]
+
+    @staticmethod
+    def _resolve_executable(parts: list, env: Dict[str, str]) -> list:
+        """Resolve a bare executable name using the service env's PATH.
+
+        CreateProcess on Windows uses the *parent* process PATH to find the
+        executable, ignoring the env dict passed to the child. Resolving here
+        with the service env's PATH ensures JAVA_HOME/bin (and equivalents)
+        are searched instead of whatever ldc itself has on PATH.
+        """
+        if len(parts) < 1 or os.sep in parts[0] or "/" in parts[0]:
+            return parts
+        path_key = next((k for k in env if k.upper() == "PATH"), "PATH")
+        resolved = shutil.which(parts[0], path=env.get(path_key, ""))
+        return [resolved, *parts[1:]] if resolved else parts
 
     def _persist(self) -> None:
         self._store.save(self._states)
