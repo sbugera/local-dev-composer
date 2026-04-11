@@ -20,10 +20,11 @@ Requires: pip install "local-dev-composer[ui]"   (textual>=0.50)
 """
 from __future__ import annotations
 
+import subprocess
 import threading
 import time
 from pathlib import Path
-from typing import Callable, Dict, Optional
+from typing import Callable, Dict, List, Optional
 
 from textual import work
 from textual.app import App, ComposeResult
@@ -110,6 +111,8 @@ class LdcInteractiveApp(App):
         Binding("i", "service_install",  "Install"),
         Binding("c", "service_clone",    "Clone"),
         Binding("k", "service_check",    "Check"),
+        Binding("w", "toggle_wrap",      "Wrap"),
+        Binding("y", "copy_log",         "Copy Log"),
         Binding("U", "all_up",           "Up All",      show=False),
         Binding("D", "all_down",         "Down All",    show=False),
         Binding("R", "all_restart",      "Restart All", show=False),
@@ -135,6 +138,7 @@ class LdcInteractiveApp(App):
         self._states: Dict[str, ServiceState] = {}
         self._selected: Optional[str] = None
         self._log_cancel = threading.Event()
+        self._log_lines: List[str] = []
         self._busy = False
 
     # ------------------------------------------------------------------
@@ -270,6 +274,7 @@ class LdcInteractiveApp(App):
     def _start_log_stream(self, name: str) -> None:
         self._log_cancel.set()
         self._log_cancel = threading.Event()
+        self._log_lines = []
 
         log_widget = self.query_one("#log-view", RichLog)
         log_widget.clear()
@@ -316,6 +321,7 @@ class LdcInteractiveApp(App):
         if cancel.is_set():
             return
 
+        self._log_lines = list(initial)
         log_widget = self.query_one("#log-view", RichLog)
         # Write all initial lines in one UI dispatch so the view opens at the bottom
         self.call_from_thread(lambda: [log_widget.write(ln) for ln in initial])
@@ -326,9 +332,34 @@ class LdcInteractiveApp(App):
             while not cancel.is_set():
                 line = fh.readline()
                 if line:
-                    self.call_from_thread(log_widget.write, line.rstrip())
+                    stripped = line.rstrip()
+                    self._log_lines.append(stripped)
+                    if len(self._log_lines) > 2000:
+                        self._log_lines = self._log_lines[-1000:]
+                    self.call_from_thread(log_widget.write, stripped)
                 else:
                     time.sleep(0.1)
+
+    # ------------------------------------------------------------------
+    # Log actions
+    # ------------------------------------------------------------------
+
+    def action_toggle_wrap(self) -> None:
+        log_widget = self.query_one("#log-view", RichLog)
+        log_widget.wrap = not log_widget.wrap
+        if self._selected:
+            self._start_log_stream(self._selected)
+
+    def action_copy_log(self) -> None:
+        if not self._log_lines:
+            self._show_message("warning", "No log content to copy")
+            return
+        text = "\n".join(self._log_lines)
+        try:
+            subprocess.run("clip", input=text, encoding="utf-8", shell=True, check=True)
+            self._show_message("success", f"Copied {len(self._log_lines)} lines to clipboard")
+        except Exception as exc:
+            self._show_message("error", f"Copy failed: {exc}")
 
     # ------------------------------------------------------------------
     # Background command runner
