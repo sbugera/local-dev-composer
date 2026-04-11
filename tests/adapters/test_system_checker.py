@@ -1,3 +1,6 @@
+from pathlib import Path
+from unittest.mock import MagicMock, patch
+
 import pytest
 
 from ldc.adapters.prerequisites.system_checker import SystemPrerequisiteChecker
@@ -6,6 +9,14 @@ from ldc.adapters.prerequisites.system_checker import SystemPrerequisiteChecker
 @pytest.fixture
 def checker():
     return SystemPrerequisiteChecker()
+
+
+def _fake_run(version_output: str):
+    """Return a mock subprocess.run result that reports the given version string."""
+    result = MagicMock()
+    result.stdout = ""
+    result.stderr = version_output
+    return result
 
 
 class TestVersionSatisfies:
@@ -45,3 +56,50 @@ class TestVersionSatisfies:
     def test_version_satisfies(self, checker, installed, constraint, expected):
         satisfied, _ = checker._version_satisfies(installed, constraint)
         assert satisfied == expected
+
+
+class TestCheckRuntimeWithEnv:
+
+    def test_uses_java_home_binary_when_set(self, checker):
+        env = {"JAVA_HOME": "C:/jdk-17"}
+        with patch("subprocess.run", return_value=_fake_run('openjdk version "17.0.5"')) as mock_run:
+            checker._check_runtime("java", "==17", env)
+        called_binary = mock_run.call_args[0][0][0]
+        assert called_binary == str(Path("C:/jdk-17") / "bin" / "java")
+
+    def test_uses_node_home_binary_when_set(self, checker):
+        env = {"NODE_HOME": "C:/node-20"}
+        with patch("subprocess.run", return_value=_fake_run("v20.11.0")) as mock_run:
+            checker._check_runtime("node", "==20", env)
+        called_binary = mock_run.call_args[0][0][0]
+        assert called_binary == str(Path("C:/node-20") / "bin" / "node")
+
+    def test_uses_default_binary_when_home_not_set(self, checker):
+        with patch("subprocess.run", return_value=_fake_run('openjdk version "17.0.5"')) as mock_run:
+            checker._check_runtime("java", "==17", None)
+        called_binary = mock_run.call_args[0][0][0]
+        assert called_binary == "java"
+
+    def test_env_passed_to_subprocess(self, checker):
+        env = {"JAVA_HOME": "C:/jdk-17", "PATH": "/custom/bin"}
+        with patch("subprocess.run", return_value=_fake_run('openjdk version "17.0.5"')) as mock_run:
+            checker._check_runtime("java", ">=17", env)
+        assert mock_run.call_args[1]["env"] == env
+
+    def test_fix_hint_mentions_java_home_when_binary_missing(self, checker):
+        env = {"JAVA_HOME": "C:/jdk-17"}
+        with patch("subprocess.run", side_effect=FileNotFoundError):
+            result = checker._check_runtime("java", "==17", env)
+        assert not result.passed
+        assert "JAVA_HOME" in result.fix_hint
+        assert "C:/jdk-17" in result.fix_hint
+
+    def test_version_constraint_applied_against_home_binary(self, checker):
+        env = {"JAVA_HOME": "C:/jdk-21"}
+        with patch("subprocess.run", return_value=_fake_run('openjdk version "21.0.3"')):
+            result = checker._check_runtime("java", "==17", env)
+        assert not result.passed
+
+        with patch("subprocess.run", return_value=_fake_run('openjdk version "21.0.3"')):
+            result = checker._check_runtime("java", "==21", env)
+        assert result.passed

@@ -130,9 +130,12 @@ class UpCommand:
                     self._runner.update_state(state)
                 return
 
+        # Resolve env early so prerequisite checks and startup use the same env
+        env = resolve_env(svc.env, svc.env_files, config_dir)
+
         # --- Prerequisite check ---
         if not skip_checks and svc.requires:
-            report = self._checker.check(name, svc.requires)
+            report = self._checker.check(name, svc.requires, env)
             if not report.passed:
                 failures = "; ".join(f.name for f in report.failures)
                 state.status = ServiceStatus.FAILED
@@ -164,7 +167,6 @@ class UpCommand:
             config.root, svc.name, svc.dir, svc.start.working_dir
         )
         log_file = str(Path(config.log_dir) / f"{name}.log")
-        env = resolve_env(svc.env, svc.env_files, config_dir)
         state.status = ServiceStatus.STARTING
         _log("info", f"[{name}] Starting…")
         t = time.monotonic()

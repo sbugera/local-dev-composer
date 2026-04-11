@@ -35,11 +35,6 @@ services:
     runtime: java
     description: "Spring Cloud Config Server"
     depends_on: []
-    requires:
-      java: ">=17"
-      commands: [mvn]
-      folders:
-        - C:/data/config-server
     env:
       SERVER_PORT: "8888"
       SPRING_PROFILES_ACTIVE: native,local
@@ -48,6 +43,11 @@ services:
     env_files:                       # merged in order; last wins
       - .env.base
       - .env.config-server
+    requires:
+      java: ">=17"
+      commands: [mvn]
+      folders:
+        - C:/data/config-server
     install:
       command: mvn clean package -DskipTests -q
       working_dir: .
@@ -70,16 +70,16 @@ services:
     depends_on:
       - postgres
       - config-server
-    requires:
-      java: ">=17"
-      commands: [mvn]
-      env_vars: [JAVA_HOME]
-      ports_free: [8080]
     env:
       SERVER_PORT: "8080"
       DATABASE_URL: jdbc:postgresql://localhost:5432/gateway_db
       SPRING_PROFILES_ACTIVE: local
       CONFIG_SERVER_URL: http://localhost:8888
+    requires:
+      java: ">=17"
+      commands: [mvn]
+      env_vars: [JAVA_HOME]
+      ports_free: [8080]
     install:
       command: mvn clean package -DskipTests -q
     start:
@@ -100,16 +100,16 @@ services:
     depends_on:
       - postgres
       - config-server
+    env:
+      DATABASE_URL: postgresql://localhost:5432/users_db   # different DB from gateway!
+      APP_PORT: "8001"
+      LOG_LEVEL: DEBUG
     requires:
       python: ">=3.9"
       commands: [pip]
       ports_free: [8001]
       folders:
         - C:/data/user-service/uploads
-    env:
-      DATABASE_URL: postgresql://localhost:5432/users_db   # different DB from gateway!
-      APP_PORT: "8001"
-      LOG_LEVEL: DEBUG
     install:
       command: "python -m venv .venv && call .venv\\Scripts\\activate.bat && pip install -r requirements.txt --quiet"
     start:
@@ -128,15 +128,15 @@ services:
     description: "Email/SMS notifications"
     depends_on:
       - postgres
-    requires:
-      node: ">=18"
-      commands: [npm]
-      ports_free: [8002]
     env:
       PORT: "8002"
       DATABASE_URL: postgresql://localhost:5432/notifications_db
       SMTP_HOST: localhost
       SMTP_PORT: "1025"
+    requires:
+      node: ">=18"
+      commands: [npm]
+      ports_free: [8002]
     install:
       command: npm install --silent
     start:

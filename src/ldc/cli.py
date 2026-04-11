@@ -192,6 +192,7 @@ def main() -> None:
             config,
             service_names=args.services or None,
             auto_fix=args.fix,
+            config_dir=config_dir,
         )
         sys.exit(0 if ok else 1)
 
