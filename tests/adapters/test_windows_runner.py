@@ -1,6 +1,7 @@
 from unittest.mock import patch
 
 from ldc.adapters.process.windows_runner import WindowsProcessRunner
+from ldc.domain.models import ServiceState, ServiceStatus
 
 
 class TestResolveExecutable:
@@ -32,3 +33,37 @@ class TestResolveExecutable:
         with patch("shutil.which", return_value="C:/jdk-21/bin/java.exe") as mock_which:
             WindowsProcessRunner._resolve_executable(["java", "-jar", "app.jar"], env)
         mock_which.assert_called_once_with("java", path="C:/jdk-21/bin")
+
+
+class TestWriteFooter:
+
+    def test_writes_status_and_elapsed(self, tmp_path):
+        log_file = tmp_path / "svc.log"
+        log_file.write_text("[LDC] Starting 'svc'...\n", encoding="utf-8")
+        state = ServiceState(
+            name="svc",
+            status=ServiceStatus.HEALTHY,
+            log_file=str(log_file),
+            started_at="2026-06-18T10:00:00+00:00",
+        )
+
+        WindowsProcessRunner._write_footer(state, "STOPPED")
+
+        text = log_file.read_text(encoding="utf-8")
+        assert "[LDC] Stopped 'svc' at " in text
+        assert "[LDC] Status: STOPPED — elapsed " in text
+
+    def test_omits_elapsed_when_no_start_time(self, tmp_path):
+        log_file = tmp_path / "svc.log"
+        log_file.write_text("", encoding="utf-8")
+        state = ServiceState(name="svc", status=ServiceStatus.STOPPED, log_file=str(log_file))
+
+        WindowsProcessRunner._write_footer(state, "EXITED (process already gone)")
+
+        text = log_file.read_text(encoding="utf-8")
+        assert "[LDC] Status: EXITED (process already gone)\n" in text
+        assert "elapsed" not in text
+
+    def test_noop_when_no_log_file(self):
+        state = ServiceState(name="svc", status=ServiceStatus.STOPPED, log_file=None)
+        WindowsProcessRunner._write_footer(state, "STOPPED")  # must not raise

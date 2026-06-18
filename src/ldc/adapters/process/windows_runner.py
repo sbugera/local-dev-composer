@@ -52,7 +52,13 @@ class WindowsProcessRunner(IProcessRunner):
 
         # Write a session header to the log
         ts = datetime.now(timezone.utc).isoformat()
-        log_fh.write(f"\n{'='*60}\n[LDC] Starting '{service.name}' at {ts}\n{'='*60}\n")
+        display_cmd = service.start.command
+        if service.start.args:
+            display_cmd += " " + " ".join(service.start.args)
+        log_fh.write(f"\n{'='*60}\n")
+        log_fh.write(f"[LDC] Starting '{service.name}' at {ts}\n")
+        log_fh.write(f"[LDC] Command: {display_cmd}\n")
+        log_fh.write(f"{'='*60}\n")
         log_fh.flush()
 
         proc = subprocess.Popen(
@@ -84,6 +90,7 @@ class WindowsProcessRunner(IProcessRunner):
         try:
             parent = psutil.Process(state.pid)
         except psutil.NoSuchProcess:
+            self._write_footer(state, "EXITED (process already gone)")
             state.status = ServiceStatus.STOPPED
             self._persist()
             return
@@ -111,6 +118,7 @@ class WindowsProcessRunner(IProcessRunner):
             except psutil.NoSuchProcess:
                 pass
 
+        self._write_footer(state, "STOPPED")
         state.status = ServiceStatus.STOPPED
         state.pid = None
         self._persist()
@@ -171,6 +179,28 @@ class WindowsProcessRunner(IProcessRunner):
         path_key = next((k for k in env if k.upper() == "PATH"), "PATH")
         resolved = shutil.which(parts[0], path=env.get(path_key, ""))
         return [resolved, *parts[1:]] if resolved else parts
+
+    @staticmethod
+    def _write_footer(state: ServiceState, status: str) -> None:
+        """Append a finish footer (timestamp, status, elapsed) to the service log."""
+        if not state.log_file:
+            return
+        finished = datetime.now(timezone.utc)
+        elapsed = ""
+        if state.started_at:
+            try:
+                started = datetime.fromisoformat(state.started_at)
+                elapsed = f" — elapsed {(finished - started).total_seconds():.1f}s"
+            except ValueError:
+                pass
+        try:
+            with open(state.log_file, "a", encoding="utf-8") as fh:
+                fh.write(f"\n{'='*60}\n")
+                fh.write(f"[LDC] Stopped '{state.name}' at {finished.isoformat()}\n")
+                fh.write(f"[LDC] Status: {status}{elapsed}\n")
+                fh.write(f"{'='*60}\n")
+        except OSError:
+            pass
 
     def _persist(self) -> None:
         self._store.save(self._states)

@@ -31,11 +31,20 @@ Each service gets its own log file under `log_dir` (default: `./logs/`):
 | `logs/<service>.log` | `up` command (stdout+stderr of the process) |
 | `logs/<service>-install.log` | `install` command |
 
-Each `up` session appends a header:
+Each `up` session is wrapped with a start header and, when the process stops,
+a finish footer recording the elapsed time and final status (`STOPPED` for a
+graceful `down`/teardown, or `EXITED (process already gone)` if the process had
+already died on its own):
 
 ```
 ============================================================
 [LDC] Starting 'gateway' at 2026-04-04T10:15:30+00:00
+[LDC] Command: java -jar build/libs/gateway.jar
+============================================================
+... process output ...
+============================================================
+[LDC] Stopped 'gateway' at 2026-04-04T11:42:07+00:00
+[LDC] Status: STOPPED — elapsed 5197.0s
 ============================================================
 ```
 
