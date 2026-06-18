@@ -31,11 +31,27 @@ Each service gets its own log file under `log_dir` (default: `./logs/`):
 | `logs/<service>.log` | `up` command (stdout+stderr of the process) |
 | `logs/<service>-install.log` | `install` command |
 
-Each session appends a header:
+Each `up` session appends a header:
 
 ```
 ============================================================
 [LDC] Starting 'gateway' at 2026-04-04T10:15:30+00:00
+============================================================
+```
+
+Each `install` run is wrapped with a start header and a finish footer that
+records the elapsed time and final status (`SUCCESS`, `FAILED (exit N)`, or
+`ERROR (...)`):
+
+```
+============================================================
+[LDC] Installing 'my-service' at 2026-04-04T10:15:30+00:00
+[LDC] Command: gradlew clean bootJar --refresh-dependencies
+============================================================
+... build output ...
+============================================================
+[LDC] Finished 'my-service' at 2026-04-04T10:20:18+00:00
+[LDC] Status: SUCCESS — elapsed 288.0s
 ============================================================
 ```
 
