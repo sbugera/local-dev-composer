@@ -156,7 +156,10 @@ class LdcInteractiveApp(App):
             with TabPane("Details", id="tab-details"):
                 yield Static("Select a service to view details.", id="details-content")
             with TabPane("Logs", id="tab-logs"):
-                yield RichLog(id="log-view", highlight=True, markup=True, wrap=True)
+                # markup=False: service log lines are raw output and routinely
+                # contain '[...]' (e.g. '[worker-1]'); parsing them as Rich
+                # markup garbles the display and crashes on stray closing tags.
+                yield RichLog(id="log-view", highlight=True, markup=False, wrap=True)
         yield Label("", id="message-bar")
         yield Footer()
 
@@ -345,7 +348,7 @@ class LdcInteractiveApp(App):
             if time.monotonic() > deadline:
                 self.call_from_thread(
                     self.query_one("#log-view", RichLog).write,
-                    f"[dim]No log file: {log_file}[/dim]",
+                    Text(f"No log file: {log_file}", style="dim"),
                 )
                 return
             time.sleep(0.3)
