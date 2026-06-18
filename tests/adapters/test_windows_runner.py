@@ -67,3 +67,47 @@ class TestWriteFooter:
     def test_noop_when_no_log_file(self):
         state = ServiceState(name="svc", status=ServiceStatus.STOPPED, log_file=None)
         WindowsProcessRunner._write_footer(state, "STOPPED")  # must not raise
+
+
+class TestNoteExit:
+
+    def _runner(self):
+        from unittest.mock import MagicMock
+
+        from ldc.ports.state_store import IStateStore
+
+        store = MagicMock(spec=IStateStore)
+        store.load.return_value = {}
+        return WindowsProcessRunner(store)
+
+    def test_writes_crash_footer_and_clears_pid(self, tmp_path):
+        log_file = tmp_path / "svc.log"
+        log_file.write_text("", encoding="utf-8")
+        state = ServiceState(
+            name="svc",
+            status=ServiceStatus.FAILED,
+            pid=4321,
+            log_file=str(log_file),
+            started_at="2026-06-18T10:00:00+00:00",
+        )
+        runner = self._runner()
+
+        runner.note_exit(state)
+
+        assert state.pid is None
+        text = log_file.read_text(encoding="utf-8")
+        assert "[LDC] Status: CRASHED (process exited) — elapsed " in text
+
+    def test_idempotent_does_not_write_twice(self, tmp_path):
+        log_file = tmp_path / "svc.log"
+        log_file.write_text("", encoding="utf-8")
+        state = ServiceState(
+            name="svc", status=ServiceStatus.FAILED, pid=4321, log_file=str(log_file)
+        )
+        runner = self._runner()
+
+        runner.note_exit(state)
+        runner.note_exit(state)  # pid already cleared — must be a no-op
+
+        text = log_file.read_text(encoding="utf-8")
+        assert text.count("[LDC] Stopped 'svc'") == 1

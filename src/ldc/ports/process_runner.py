@@ -39,5 +39,14 @@ class IProcessRunner(ABC):
         """Persist an updated ServiceState (e.g. after health check resolves)."""
 
     @abstractmethod
+    def note_exit(self, state: ServiceState, status: str = "CRASHED (process exited)") -> None:
+        """
+        Record that a process exited outside ldc's control (e.g. a crash
+        detected during a status poll): append a finish footer to its log,
+        clear the pid, and persist. Idempotent — does nothing if *state* has
+        no pid, so repeated detections will not write duplicate footers.
+        """
+
+    @abstractmethod
     def reload_states(self) -> None:
         """Re-read persisted state from the store, discarding any in-memory-only changes."""

@@ -139,6 +139,14 @@ class WindowsProcessRunner(IProcessRunner):
         self._states[state.name] = state
         self._persist()
 
+    def note_exit(self, state: ServiceState, status: str = "CRASHED (process exited)") -> None:
+        if state.pid is None:
+            return
+        self._write_footer(state, status)
+        state.pid = None
+        self._states[state.name] = state
+        self._persist()
+
     def reload_states(self) -> None:
         self._states = self._store.load()
 

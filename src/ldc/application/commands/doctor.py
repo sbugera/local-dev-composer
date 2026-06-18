@@ -98,6 +98,9 @@ class DoctorCommand:
                     actions.append(
                         f"[{name}] Crashed — inspect log: {state.log_file}"
                     )
+                state.status = ServiceStatus.FAILED
+                state.last_error = "Process no longer running"
+                self._runner.note_exit(state)
             else:
                 self._reporter.success(
                     f"[{name}] Running (pid {state.pid}, status: {state.status.value})"

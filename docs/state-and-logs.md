@@ -32,9 +32,12 @@ Each service gets its own log file under `log_dir` (default: `./logs/`):
 | `logs/<service>-install.log` | `install` command |
 
 Each `up` session is wrapped with a start header and, when the process stops,
-a finish footer recording the elapsed time and final status (`STOPPED` for a
-graceful `down`/teardown, or `EXITED (process already gone)` if the process had
-already died on its own):
+a finish footer recording the elapsed time and final status:
+
+- `STOPPED` — graceful `down`/teardown
+- `EXITED (process already gone)` — the process had already died when `down` ran
+- `CRASHED (process exited)` — a crash detected by a status poll (the live
+  dashboard, `ldc status`, or `ldc doctor`)
 
 ```
 ============================================================

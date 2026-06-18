@@ -270,6 +270,7 @@ class LdcInteractiveApp(App):
                 if not self._container.runner.is_alive(state):
                     state.status = ServiceStatus.FAILED
                     state.last_error = "Process no longer running"
+                    self._container.runner.note_exit(state)
 
     # ------------------------------------------------------------------
     # Row selection

@@ -30,7 +30,7 @@ class StatusCommand:
                 # Reconcile: process may have died since last save
                 if state.pid and not self._runner.is_alive(state):
                     state.status = ServiceStatus.STOPPED
-                    state.pid = None
+                    self._runner.note_exit(state)
             states[name] = state
 
         self._reporter.print_status_table(states)
